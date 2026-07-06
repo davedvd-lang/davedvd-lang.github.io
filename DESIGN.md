@@ -15,10 +15,10 @@ Butaca
 │   ├── Para esta noche        (sugerencias de tu «Por ver» con botón "Empezar")
 │   └── Últimas vistas         (historial reciente con tu nota)
 ├── Películas                  ← biblioteca filtrada por tipo
-│   └── Viendo | Por ver | Vistas   (control segmentado, estados independientes)
+│   └── Viendo | Por ver | Vistas | Abandonadas   (chips de filtro + ordenación)
 ├── [+] Añadir                 ← buscador global (overlay, accesible desde todas partes)
 ├── Series
-│   └── Viendo | Por ver | Vistas
+│   └── Viendo | Por ver | En pausa | Vistas | Abandonadas
 │       └── Ficha → Temporadas → rejilla de capítulos
 └── Stats                      (horas vistas, pelis, capítulos, series terminadas)
 ```
@@ -29,11 +29,27 @@ Butaca
 {
   id, type: "movie" | "series",
   title, year, genre, runtime?,          // runtime solo en películas
-  status: "watching" | "watchlist" | "watched",
+  status: "watching" | "watchlist" | "paused" | "watched" | "dropped",
   rating?: 1..5,                          // al completar
+  addedAt?: epoch_ms,                     // para ordenar por «reciente»
+  rewatches?: n,                          // revisionados completados (vista n+1 veces)
+  rewatching?: true,                      // revisionado de serie en curso
   seasons?: [{ eps: 9, watched: 6 }, …]   // solo series: progreso por temporada
 }
 ```
+
+**Estados de transición** (la realidad del espectador):
+- **En pausa** (solo series): al día y esperando temporada, o simplemente aparcada.
+  Sale de «Viendo» para no saturar el dashboard; un atajo bajo «Sigues viendo»
+  («⏸ N series en pausa») lleva a la pestaña, y cada tarjeta tiene ▶ para reanudar
+  en 1 toque. La ficha distingue «esperando temporada» (al día) de «te quedaste en T_·E_».
+- **Abandonada**: conserva el registro de dónde la dejaste («La dejaste en T1·E8»)
+  para no volver a picar, fuera de las listas activas. Reversible desde la ficha.
+- **Revisionado**: en pelis, un contador «+1 vista otra vez» (badge ×N en la rejilla).
+  En series, «Volver a empezar» reinicia el progreso con la marca 🔁 sin tocar el
+  historial; al completarla suma un revisionado y vuelve a «Vistas».
+- Automatismos: completar la última temporada ⇒ «Vista» (o cierra el revisionado);
+  avanzar capítulo de algo en pausa/abandonado lo devuelve a «Viendo».
 
 El estado de una serie y su progreso granular conviven: el "último episodio visto" se
 deriva de `seasons` (primera temporada incompleta → siguiente capítulo). No hay estados
@@ -49,6 +65,8 @@ duplicados que mantener sincronizados.
 | **Empezar algo de la watchlist** | Dashboard → botón ▶ en «Para esta noche» | 1 |
 | **Cambiar de estado** | Ficha → control segmentado Por ver / Viendo / Vista | 2 |
 | **Terminar una película** | Dashboard → «✓ Terminada» | 1 |
+| **Reanudar una serie en pausa** | Pestaña En pausa → ▶ en la tarjeta | 1 |
+| **+1 revisionado de una peli** | Ficha → «+1 vista otra vez» | 2 |
 
 Automatismos que ahorran toques:
 - Marcar el último capítulo de la serie ⇒ pasa sola a **Vistas** (toast «🏆 ¡Terminada!»).
@@ -97,6 +115,12 @@ encuentra la acción de un vistazo y la pantalla nunca satura.
 3. **Para esta noche**: filas compactas de la watchlist con ▶ para empezar al momento.
 4. **Últimas vistas**: tira de pósteres pequeños con tu nota (cierra el ciclo emocional).
 5. **Tab bar**: Hoy · Pelis · **[+] flotante central** · Series · Stats.
+
+### Filtros y ordenación
+Cada biblioteca ordena por **Reciente** (fecha de añadido, por defecto), **Duración**
+(minutos de peli o volumen total de la serie — «¿me caben 90 min o un capítulo?») y
+**A–Z**. El filtro por tipo es estructural (pestañas Pelis/Series) y los estados son
+chips deslizables con contador. Con orden por duración, la rejilla muestra los minutos.
 
 ### Componentes
 `Poster` (degradado + glifo, sin imágenes externas) · `ProgressBar` · `Segmented`

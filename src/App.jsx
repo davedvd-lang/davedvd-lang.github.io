@@ -1,8 +1,8 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Check, ChevronRight, Clapperboard, Clock3, Download, Film, Flame, Globe, Home,
-  KeyRound, Play, Plus, Popcorn, RotateCcw, Search, Sparkles, Star, Trash2, Tv,
-  Upload, X,
+  ArrowDownAZ, Ban, Check, ChevronRight, Clapperboard, Clock3, Download, Film,
+  Flame, Globe, History, Home, KeyRound, Pause, Play, Plus, Popcorn, Repeat,
+  RotateCcw, Search, Sparkles, Star, Timer, Trash2, Tv, Upload, X,
 } from "lucide-react";
 import { seedLibrary, catalog } from "./data.js";
 import {
@@ -13,9 +13,17 @@ import {
 /* ---------- helpers de dominio ---------- */
 
 const STATUS = {
-  watching: { label: "Viendo", labelDone: "Viendo" },
-  watchlist: { label: "Por ver", labelDone: "Por ver" },
-  watched: { label: "Vistas", labelDone: "Vista" },
+  watching: { label: "Viendo", single: "Viendo", icon: Play },
+  watchlist: { label: "Por ver", single: "Por ver", icon: Clock3 },
+  paused: { label: "En pausa", single: "En pausa", icon: Pause },
+  watched: { label: "Vistas", single: "Vista", icon: Check },
+  dropped: { label: "Abandonadas", single: "Abandonada", icon: Ban },
+};
+
+/* estados ofrecidos por tipo: «En pausa» solo tiene sentido en series */
+const STATUSES_FOR = {
+  movie: ["watchlist", "watching", "watched", "dropped"],
+  series: ["watchlist", "watching", "paused", "watched", "dropped"],
 };
 
 function seriesProgress(item) {
@@ -32,6 +40,24 @@ function seriesProgress(item) {
 }
 
 const epLabel = (n) => (n ? `T${n.season}·E${n.ep}` : "");
+
+/** Último episodio visto ("T1·E8") o null si no ha empezado. */
+function lastSeenLabel(item) {
+  if (item.type !== "series") return null;
+  let last = null;
+  item.seasons.forEach((s, i) => { if (s.watched > 0) last = `T${i + 1}·E${s.watched}`; });
+  return last;
+}
+
+/** Duración estimada para ordenar: minutos de peli o total de la serie. */
+const itemDuration = (it) =>
+  it.type === "movie" ? (it.runtime || 999) : seriesProgress(it).total * 45;
+
+const SORTS = {
+  added: { label: "Reciente", icon: History, fn: (a, b) => (b.addedAt || 0) - (a.addedAt || 0) },
+  duration: { label: "Duración", icon: Timer, fn: (a, b) => itemDuration(a) - itemDuration(b) },
+  alpha: { label: "A–Z", icon: ArrowDownAZ, fn: (a, b) => a.title.localeCompare(b.title, "es") },
+};
 
 function hoursWatched(lib) {
   let min = 0;
@@ -101,29 +127,6 @@ function Stars({ value = 0, onChange }) {
   );
 }
 
-function Segmented({ options, value, onChange }) {
-  return (
-    <div className="flex rounded-2xl bg-panel p-1 ring-1 ring-line">
-      {options.map((o) => (
-        <button
-          key={o.value}
-          onClick={() => onChange(o.value)}
-          className={`flex-1 rounded-xl px-2 py-2 text-sm font-semibold transition-all duration-200 active:scale-95 ${
-            value === o.value ? "bg-brass text-ink shadow-lg shadow-brass/20" : "text-fog hover:text-snow"
-          }`}
-        >
-          {o.label}
-          {o.count != null && (
-            <span className={`ml-1.5 text-xs ${value === o.value ? "text-ink/60" : "text-fog/60"}`}>
-              {o.count}
-            </span>
-          )}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 /* ---------- pantalla: Hoy (dashboard) ---------- */
 
 function WatchingCard({ item, onAdvance, onOpen }) {
@@ -133,8 +136,13 @@ function WatchingCard({ item, onAdvance, onOpen }) {
 
   return (
     <div className="w-60 shrink-0 snap-start overflow-hidden rounded-3xl bg-panel ring-1 ring-line">
-      <button onClick={onOpen} className="block w-full text-left">
+      <button onClick={onOpen} className="relative block w-full text-left">
         <Poster item={item} className="h-32 w-full" emojiClass="text-5xl" />
+        {item.rewatching && (
+          <span className="absolute left-2.5 top-2.5 flex items-center gap-1 rounded-full bg-black/60 px-2 py-1 text-[10px] font-bold text-brass2 backdrop-blur">
+            <Repeat size={10} /> Revisionado
+          </span>
+        )}
         <div className="px-4 pt-3">
           <p className="truncate text-base font-bold text-snow">{item.title}</p>
           <p className="mt-0.5 flex items-center gap-1.5 text-xs text-fog">
@@ -181,10 +189,11 @@ function TonightRow({ item, onStart, onOpen }) {
   );
 }
 
-function HomeView({ lib, onAdvance, onStart, onOpen, onAdd }) {
+function HomeView({ lib, onAdvance, onStart, onOpen, onAdd, onPaused }) {
   const watching = lib.filter((i) => i.status === "watching");
   const watchlist = lib.filter((i) => i.status === "watchlist");
   const watched = lib.filter((i) => i.status === "watched");
+  const paused = lib.filter((i) => i.status === "paused");
   const hour = new Date().getHours();
   const greeting = hour < 14 ? "Buenos días" : hour < 21 ? "Buenas tardes" : "Buenas noches";
 
@@ -219,6 +228,16 @@ function HomeView({ lib, onAdvance, onStart, onOpen, onAdd }) {
               <WatchingCard key={it.id} item={it} onAdvance={onAdvance} onOpen={() => onOpen(it.id)} />
             ))}
           </div>
+        )}
+        {paused.length > 0 && (
+          <button
+            onClick={onPaused}
+            className="mx-5 mt-3 flex items-center gap-2 rounded-full bg-panel px-3.5 py-2 text-xs font-semibold text-fog ring-1 ring-line transition-colors active:scale-95"
+          >
+            <Pause size={12} className="text-brass" />
+            {paused.length === 1 ? "1 serie en pausa" : `${paused.length} series en pausa`} · esperando temporada
+            <ChevronRight size={13} />
+          </button>
         )}
       </section>
 
@@ -259,11 +278,11 @@ function HomeView({ lib, onAdvance, onStart, onOpen, onAdd }) {
 
 /* ---------- pantalla: biblioteca (Pelis / Series) ---------- */
 
-function LibraryView({ lib, type, onOpen, onAdvance }) {
-  const [tab, setTab] = useState("watching");
+function LibraryView({ lib, type, tab, onTab, onOpen, onAdvance, onResume }) {
+  const [sort, setSort] = useState("added");
   const items = lib.filter((i) => i.type === type);
   const byStatus = (s) => items.filter((i) => i.status === s);
-  const shown = byStatus(tab);
+  const shown = [...byStatus(tab)].sort(SORTS[sort].fn);
   const isSeries = type === "series";
 
   return (
@@ -272,16 +291,37 @@ function LibraryView({ lib, type, onOpen, onAdvance }) {
         {isSeries ? <Tv className="text-brass" size={24} /> : <Clapperboard className="text-brass" size={24} />}
         {isSeries ? "Series" : "Películas"}
       </h1>
-      <div className="mt-4">
-        <Segmented
-          value={tab}
-          onChange={setTab}
-          options={[
-            { value: "watching", label: "Viendo", count: byStatus("watching").length },
-            { value: "watchlist", label: "Por ver", count: byStatus("watchlist").length },
-            { value: "watched", label: "Vistas", count: byStatus("watched").length },
-          ]}
-        />
+
+      <div className="-mx-5 mt-4 flex gap-2 overflow-x-auto px-5 no-scrollbar">
+        {STATUSES_FOR[type].map((s) => (
+          <button
+            key={s}
+            onClick={() => onTab(s)}
+            className={`shrink-0 rounded-full px-3.5 py-2 text-sm font-bold transition-colors active:scale-95 ${
+              tab === s ? "bg-brass text-ink shadow-lg shadow-brass/20" : "bg-panel text-fog ring-1 ring-line"
+            }`}
+          >
+            {STATUS[s].label}
+            <span className={`ml-1.5 text-xs ${tab === s ? "text-ink/60" : "text-fog/60"}`}>
+              {byStatus(s).length}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      <div className="mt-3 flex items-center gap-1.5">
+        <span className="mr-0.5 text-[10px] font-bold uppercase tracking-wide text-fog/60">Ordenar</span>
+        {Object.entries(SORTS).map(([k, s]) => (
+          <button
+            key={k}
+            onClick={() => setSort(k)}
+            className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold transition-colors ${
+              sort === k ? "bg-brass/15 text-brass ring-1 ring-brass/30" : "text-fog"
+            }`}
+          >
+            <s.icon size={11} /> {s.label}
+          </button>
+        ))}
       </div>
 
       {shown.length === 0 ? (
@@ -289,23 +329,45 @@ function LibraryView({ lib, type, onOpen, onAdvance }) {
           Nada por aquí todavía. Añade títulos con el botón <span className="font-bold text-brass">+</span>
         </div>
       ) : (
-        <div className="mt-5 grid grid-cols-3 gap-3">
+        <div className="mt-4 grid grid-cols-3 gap-3">
           {shown.map((it) => {
             const prog = isSeries ? seriesProgress(it) : null;
+            const left = lastSeenLabel(it);
             return (
               <div key={it.id} className="group relative">
                 <button onClick={() => onOpen(it.id)} className="block w-full text-left transition-transform active:scale-95">
                   <div className="relative overflow-hidden rounded-2xl ring-1 ring-line">
                     <Poster item={it} className="aspect-[2/3] w-full" emojiClass="text-3xl" />
+                    {(it.rewatches || it.rewatching) && (
+                      <span className="absolute left-1.5 top-1.5 flex items-center gap-0.5 rounded-full bg-black/60 px-1.5 py-0.5 text-[9px] font-bold text-brass2 backdrop-blur">
+                        <Repeat size={9} /> ×{(it.rewatches || 0) + 1}
+                      </span>
+                    )}
                     {isSeries && tab === "watching" && (
                       <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-2 pt-5">
                         <p className="text-[10px] font-bold text-brass2">{epLabel(prog.next)} siguiente</p>
                         <ProgressBar pct={prog.pct} className="mt-1 h-1" />
                       </div>
                     )}
+                    {tab === "paused" && (
+                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-2 pt-5">
+                        <p className="text-[10px] font-bold text-snow/90">
+                          {prog.next ? `Al día · sigue ${epLabel(prog.next)}` : "Esperando temporada"}
+                        </p>
+                      </div>
+                    )}
+                    {tab === "dropped" && isSeries && (
+                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-2 pt-5">
+                        <p className="text-[10px] font-bold text-snow/90">
+                          {left ? `La dejaste en ${left}` : "Sin empezar"}
+                        </p>
+                      </div>
+                    )}
                   </div>
                   <p className="mt-1.5 truncate text-xs font-bold text-snow">{it.title}</p>
-                  <p className="truncate text-[10px] text-fog">{it.year}</p>
+                  <p className="truncate text-[10px] text-fog">
+                    {it.year}{it.type === "movie" && sort === "duration" ? ` · ${it.runtime} min` : ""}
+                  </p>
                 </button>
                 {tab === "watched" && it.rating ? (
                   <div className="mt-0.5"><Stars value={it.rating} /></div>
@@ -319,6 +381,15 @@ function LibraryView({ lib, type, onOpen, onAdvance }) {
                     <Check size={15} strokeWidth={3.5} />
                   </button>
                 )}
+                {tab === "paused" && (
+                  <button
+                    onClick={() => onResume(it)}
+                    aria-label={`Reanudar ${it.title}`}
+                    className="absolute -right-1.5 -top-1.5 flex h-8 w-8 items-center justify-center rounded-full bg-brass text-ink shadow-lg shadow-black/40 ring-2 ring-ink transition-transform active:scale-90"
+                  >
+                    <Play size={14} className="ml-0.5 fill-ink" />
+                  </button>
+                )}
               </div>
             );
           })}
@@ -330,9 +401,10 @@ function LibraryView({ lib, type, onOpen, onAdvance }) {
 
 /* ---------- ficha (bottom sheet) ---------- */
 
-function DetailSheet({ item, onClose, onSetStatus, onSetEpisode, onAdvance, onRate, onRemove }) {
+function DetailSheet({ item, onClose, onSetStatus, onSetEpisode, onAdvance, onRate, onRewatch, onRemove }) {
   const isSeries = item.type === "series";
   const prog = isSeries ? seriesProgress(item) : null;
+  const left = lastSeenLabel(item);
 
   return (
     <div className="fixed inset-0 z-40 flex items-end justify-center" role="dialog" aria-modal="true">
@@ -363,15 +435,41 @@ function DetailSheet({ item, onClose, onSetStatus, onSetEpisode, onAdvance, onRa
             <p className="text-sm leading-relaxed text-fog">{item.synopsis}</p>
           )}
 
-          <Segmented
-            value={item.status}
-            onChange={(s) => onSetStatus(item, s)}
-            options={[
-              { value: "watchlist", label: "Por ver" },
-              { value: "watching", label: "Viendo" },
-              { value: "watched", label: isSeries ? "Vista" : "Vista" },
-            ]}
-          />
+          <div className="flex flex-wrap gap-2">
+            {STATUSES_FOR[item.type].map((s) => {
+              const Icon = STATUS[s].icon;
+              const active = item.status === s;
+              return (
+                <button
+                  key={s}
+                  onClick={() => onSetStatus(item, s)}
+                  className={`flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-bold transition-all duration-150 active:scale-95 ${
+                    active ? "bg-brass text-ink shadow-lg shadow-brass/20" : "bg-panel2 text-fog ring-1 ring-line"
+                  }`}
+                >
+                  <Icon size={13} /> {STATUS[s].single}
+                </button>
+              );
+            })}
+          </div>
+
+          {item.status === "paused" && (
+            <p className="flex items-center gap-2 rounded-2xl bg-panel2 p-3.5 text-xs leading-relaxed text-fog ring-1 ring-line">
+              <Pause size={14} className="shrink-0 text-brass" />
+              {prog?.next
+                ? `En pausa: te quedaste en ${left || "el principio"}. Cuando quieras, reanuda con ▶.`
+                : "Al día. Esperando nueva temporada — reanúdala cuando se estrene."}
+            </p>
+          )}
+
+          {item.status === "dropped" && (
+            <p className="flex items-center gap-2 rounded-2xl bg-panel2 p-3.5 text-xs leading-relaxed text-fog ring-1 ring-line">
+              <Ban size={14} className="shrink-0 text-fog" />
+              {isSeries
+                ? `Abandonada${left ? ` en ${left}` : " sin empezar"}. Queda registrada para no volver a picar.`
+                : "Abandonada. Queda registrada para no volver a picar."}
+            </p>
+          )}
 
           {item.status === "watched" && (
             <div className="flex items-center justify-between rounded-2xl bg-panel2 p-4 ring-1 ring-line">
@@ -380,9 +478,35 @@ function DetailSheet({ item, onClose, onSetStatus, onSetEpisode, onAdvance, onRa
             </div>
           )}
 
+          {item.status === "watched" && (
+            <div className="flex items-center justify-between gap-3 rounded-2xl bg-panel2 p-4 ring-1 ring-line">
+              <div>
+                <p className="flex items-center gap-1.5 text-sm font-semibold text-snow">
+                  <Repeat size={14} className="text-brass" /> Revisionados
+                </p>
+                <p className="mt-0.5 text-xs text-fog">
+                  {item.rewatches ? `Vista ${item.rewatches + 1} veces` : "Vista 1 vez"}
+                </p>
+              </div>
+              <button
+                onClick={() => onRewatch(item)}
+                className="shrink-0 rounded-full bg-brass/15 px-3.5 py-2 text-xs font-bold text-brass ring-1 ring-brass/30 transition-transform active:scale-95"
+              >
+                {isSeries ? "▶ Volver a empezar" : "+1 vista otra vez"}
+              </button>
+            </div>
+          )}
+
+          {item.rewatching && (
+            <p className="flex items-center gap-2 rounded-2xl bg-brass/10 p-3.5 text-xs font-semibold text-brass2 ring-1 ring-brass/25">
+              <Repeat size={14} className="shrink-0" />
+              Revisionado nº{(item.rewatches || 0) + 1} en curso — tu historial de «vista» se conserva.
+            </p>
+          )}
+
           {isSeries && (
             <>
-              {prog.next && item.status !== "watchlist" && (
+              {prog.next && (item.status === "watching" || item.status === "paused") && (
                 <button
                   onClick={() => onAdvance(item)}
                   className="flex w-full items-center justify-center gap-2 rounded-2xl bg-brass py-3.5 text-base font-bold text-ink shadow-lg shadow-brass/25 transition-transform active:scale-[.97]"
@@ -607,6 +731,8 @@ function StatsView({ lib, tmdbKey, onSaveKey, onReset, onExport, onImport }) {
     { label: "Películas vistas", value: movies.filter((m) => m.status === "watched").length, icon: Film },
     { label: "Capítulos vistos", value: eps, icon: Tv },
     { label: "Series terminadas", value: series.filter((s) => s.status === "watched").length, icon: Check },
+    { label: "Revisionados", value: lib.reduce((n, i) => n + (i.rewatches || 0), 0), icon: Repeat },
+    { label: "Abandonadas", value: lib.filter((i) => i.status === "dropped").length, icon: Ban },
   ];
   return (
     <div className="px-5 pb-6 pt-6">
@@ -718,6 +844,8 @@ function loadLibrary() {
 export default function App() {
   const [lib, setLib] = useState(loadLibrary);
   const [tab, setTab] = useState("home");
+  const [movieTab, setMovieTab] = useState("watching");
+  const [seriesTab, setSeriesTab] = useState("watching");
   const [detailId, setDetailId] = useState(null);
   const [addOpen, setAddOpen] = useState(false);
   const [toast, setToast] = useState(null);
@@ -747,23 +875,38 @@ export default function App() {
 
   const patch = (id, fn) => setLib((L) => L.map((i) => (i.id === id ? fn(i) : i)));
 
+  /* al completar (o completar de nuevo): cuadrar estado y contador de revisionados */
+  const finish = (i) => ({
+    ...i,
+    status: "watched",
+    rewatches: i.rewatching ? (i.rewatches || 0) + 1 : i.rewatches,
+    rewatching: undefined,
+  });
+
   /* +1 capítulo (o terminar película) — la acción de un solo toque */
   const advance = (item) => {
     if (item.type === "movie") {
-      patch(item.id, (i) => ({ ...i, status: "watched" }));
-      say(`🎬 «${item.title}» marcada como vista`);
+      patch(item.id, finish);
+      say(item.rewatching ? `🔁 «${item.title}» vista otra vez` : `🎬 «${item.title}» marcada como vista`);
       return;
     }
     const prog = seriesProgress(item);
     if (!prog.next) return;
     const { season, ep } = prog.next;
     const willFinish = prog.seen + 1 === prog.total;
-    patch(item.id, (i) => ({
-      ...i,
-      status: willFinish ? "watched" : i.status === "watchlist" ? "watching" : i.status,
-      seasons: i.seasons.map((s, si) => (si === season - 1 ? { ...s, watched: ep } : s)),
-    }));
-    say(willFinish ? `🏆 ¡«${item.title}» terminada!` : `✓ ${epLabel(prog.next)} de «${item.title}»`);
+    patch(item.id, (i) => {
+      const next = {
+        ...i,
+        status: ["watchlist", "paused", "dropped"].includes(i.status) ? "watching" : i.status,
+        seasons: i.seasons.map((s, si) => (si === season - 1 ? { ...s, watched: ep } : s)),
+      };
+      return willFinish ? finish(next) : next;
+    });
+    say(
+      willFinish
+        ? item.rewatching ? `🔁 ¡Revisionado de «${item.title}» completado!` : `🏆 ¡«${item.title}» terminada!`
+        : `✓ ${epLabel(prog.next)} de «${item.title}»`
+    );
   };
 
   /* fija el último episodio visto con un toque (toggle si repites en el mismo) */
@@ -777,18 +920,40 @@ export default function App() {
         si < seasonIdx ? { ...s, watched: s.eps } : si === seasonIdx ? { ...s, watched: target } : { ...s, watched: 0 }
       );
       const done = seasons.every((s) => s.watched === s.eps);
-      return { ...i, seasons, status: done ? "watched" : i.status === "watched" ? "watching" : i.status };
+      if (done) return finish({ ...i, seasons });
+      return { ...i, seasons, status: i.status === "watched" ? "watching" : i.status };
     });
   };
 
-  const setStatus = (item, status) => {
+  /* revisionado: pelis suman al contador; series reinician el progreso sin perder el historial */
+  const rewatch = (item) => {
+    if (item.type === "movie") {
+      patch(item.id, (i) => ({ ...i, rewatches: (i.rewatches || 0) + 1 }));
+      say(`🔁 «${item.title}» vista otra vez`);
+      return;
+    }
     patch(item.id, (i) => ({
       ...i,
-      status,
-      // marcar una serie como vista completa todos los capítulos
-      seasons: i.seasons && status === "watched" ? i.seasons.map((s) => ({ ...s, watched: s.eps })) : i.seasons,
+      status: "watching",
+      rewatching: true,
+      seasons: i.seasons.map((s) => ({ ...s, watched: 0 })),
     }));
-    say(`Movida a «${STATUS[status].label}»`);
+    setDetailId(null);
+    say(`🔁 Revisionado nº${(item.rewatches || 0) + 1} de «${item.title}» en marcha`);
+  };
+
+  const setStatus = (item, status) => {
+    patch(item.id, (i) => {
+      // marcar como vista completa todos los capítulos (y cierra el revisionado si lo había)
+      if (status === "watched") {
+        return finish({
+          ...i,
+          seasons: i.seasons ? i.seasons.map((s) => ({ ...s, watched: s.eps })) : i.seasons,
+        });
+      }
+      return { ...i, status };
+    });
+    say(`Movida a «${STATUS[status].single}»`);
   };
 
   const addFromCatalog = async (c, status) => {
@@ -799,8 +964,8 @@ export default function App() {
       catch { /* si falla, se añade igualmente con lo que hay */ }
       if (item.type === "series" && !item.seasons) item.seasons = [{ eps: 8, watched: 0 }];
     }
-    setLib((L) => [{ ...item, id: ++nextId, status, poster: { ...item.poster } }, ...L]);
-    say(`＋ «${item.title}» en «${STATUS[status].label}»`);
+    setLib((L) => [{ ...item, id: ++nextId, status, addedAt: Date.now(), poster: { ...item.poster } }, ...L]);
+    say(`＋ «${item.title}» en «${STATUS[status].single}»`);
   };
 
   const saveKey = (key) => {
@@ -865,10 +1030,17 @@ export default function App() {
         {tab === "home" && (
           <HomeView lib={lib} onAdvance={advance}
             onStart={(it) => { setStatus(it, "watching"); }}
-            onOpen={setDetailId} onAdd={() => setAddOpen(true)} />
+            onOpen={setDetailId} onAdd={() => setAddOpen(true)}
+            onPaused={() => { setSeriesTab("paused"); setTab("series"); }} />
         )}
-        {tab === "movie" && <LibraryView lib={lib} type="movie" onOpen={setDetailId} onAdvance={advance} />}
-        {tab === "series" && <LibraryView lib={lib} type="series" onOpen={setDetailId} onAdvance={advance} />}
+        {tab === "movie" && (
+          <LibraryView lib={lib} type="movie" tab={movieTab} onTab={setMovieTab}
+            onOpen={setDetailId} onAdvance={advance} onResume={(it) => setStatus(it, "watching")} />
+        )}
+        {tab === "series" && (
+          <LibraryView lib={lib} type="series" tab={seriesTab} onTab={setSeriesTab}
+            onOpen={setDetailId} onAdvance={advance} onResume={(it) => setStatus(it, "watching")} />
+        )}
         {tab === "stats" && (
           <StatsView lib={lib} tmdbKey={tmdbKey} onSaveKey={saveKey} onReset={resetData}
             onExport={exportData} onImport={importData} />
@@ -885,6 +1057,7 @@ export default function App() {
           onSetEpisode={setEpisode}
           onAdvance={advance}
           onRate={(it, n) => patch(it.id, (i) => ({ ...i, rating: n }))}
+          onRewatch={rewatch}
           onRemove={remove}
         />
       )}
