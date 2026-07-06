@@ -1,0 +1,65 @@
+@import "tailwindcss";
+@source "./";
+
+@theme {
+  /* Paleta «sala de cine» */
+  --color-ink: #0b0e16;    /* fondo: negro azulado, sala a oscuras */
+  --color-panel: #141a28;  /* superficie base */
+  --color-panel2: #1b2334; /* superficie elevada */
+  --color-line: #242e46;   /* bordes sutiles */
+  --color-brass: #f4b43e;  /* ámbar: luz de proyector (primario) */
+  --color-brass2: #ffd27a; /* ámbar claro (degradados) */
+  --color-mint: #4ade80;   /* verde: completado */
+  --color-fog: #97a3bd;    /* texto secundario */
+  --color-snow: #f4f2ec;   /* texto principal, blanco cálido */
+}
+
+html { background: var(--color-ink); }
+body {
+  font-family: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* chips de estadísticas del dashboard */
+.chip {
+  @apply flex shrink-0 items-center gap-1.5 rounded-full bg-panel px-3 py-1.5 text-xs font-semibold text-fog ring-1 ring-line;
+}
+
+/* botones pequeños del buscador (añadir con un toque) */
+.add-mini {
+  @apply flex items-center gap-1 rounded-full bg-brass/12 px-2.5 py-1.5 text-[10px] font-bold text-brass ring-1 ring-brass/30 transition-transform active:scale-90;
+}
+
+/* ocultar scrollbars en carruseles */
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* microinteracciones */
+@keyframes pop {
+  0% { transform: scale(1); }
+  35% { transform: scale(0.93); }
+  70% { transform: scale(1.03); }
+  100% { transform: scale(1); }
+}
+.animate-pop { animation: pop 0.35s ease-out; }
+
+@keyframes sheet {
+  from { transform: translateY(6%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.animate-sheet { animation: sheet 0.28s cubic-bezier(0.2, 0.9, 0.3, 1); }
+
+@keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
+.animate-fadein { animation: fadein 0.2s ease-out; }
+
+@keyframes toast {
+  0% { transform: translateY(12px) scale(0.95); opacity: 0; }
+  12% { transform: translateY(0) scale(1); opacity: 1; }
+  88% { transform: translateY(0) scale(1); opacity: 1; }
+  100% { transform: translateY(6px) scale(0.97); opacity: 0; }
+}
+.animate-toast { animation: toast 2.2s ease-out both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-pop, .animate-sheet, .animate-fadein, .animate-toast { animation: none; }
+}
