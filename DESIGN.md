@@ -62,6 +62,8 @@ duplicados que mantener sincronizados.
 | **Avanzar capítulo** | Abrir app → botón ámbar «✓ T2·E7 vista» en el dashboard | **1** |
 | **Fijar el último cap. visto** (p. ej. te pusiste al día fuera de casa) | Ficha → tocar el episodio en la rejilla (rellena todo lo anterior automáticamente) | 2 |
 | **Añadir título** | Botón [+] central → escribir → «Por ver» o «Viendo» en el propio resultado | 2 + texto |
+| **Añadir «ya vista» con nota** | [+] → tocar el resultado (ficha preview) → chip «Vista» → estrellas | 3 + texto |
+| **Añadir a mitad de serie** | [+] → tocar el resultado → tocar el último capítulo visto en la rejilla | 2 + texto |
 | **Empezar algo de la watchlist** | Dashboard → botón ▶ en «Para esta noche» | 1 |
 | **Cambiar de estado** | Ficha → control segmentado Por ver / Viendo / Vista | 2 |
 | **Terminar una película** | Dashboard → «✓ Terminada» | 1 |
@@ -126,7 +128,9 @@ chips deslizables con contador. Con orden por duración, la rejilla muestra los 
 `Poster` (degradado + glifo, sin imágenes externas) · `ProgressBar` · `Segmented`
 (selector de estado) · `WatchingCard` · `TonightRow` · `LibraryGrid` (3 col, aspecto 2/3,
 quick-action «✓» superpuesta en Viendo) · `DetailSheet` (ficha con rejilla de episodios)
-· `AddSheet` (buscador con alta en 1 toque) · `TabBar` · `Toast` · `Stars`.
+· `AddSheet` (buscador con alta en 1 toque; tocar el resultado abre la ficha en modo
+*preview* — sinopsis, temporadas y estados sin estar aún en la videoteca: la primera
+acción dentro la guarda con esa acción ya aplicada) · `TabBar` · `Toast` · `Stars`.
 
 ## 4. Estructura del código
 

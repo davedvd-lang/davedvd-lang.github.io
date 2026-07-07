@@ -49,6 +49,21 @@ function lastSeenLabel(item) {
   return last;
 }
 
+/** Fija el último episodio visto: temporadas previas completas, posteriores a cero.
+    Repetir el toque sobre el mismo episodio lo desmarca. */
+function withLastEpisode(i, seasonIdx, ep) {
+  const already =
+    i.seasons[seasonIdx].watched === ep &&
+    i.seasons.every((s, si) =>
+      si < seasonIdx ? s.watched === s.eps : si > seasonIdx ? s.watched === 0 : true
+    );
+  const target = already ? ep - 1 : ep;
+  const seasons = i.seasons.map((s, si) =>
+    si < seasonIdx ? { ...s, watched: s.eps } : si === seasonIdx ? { ...s, watched: target } : { ...s, watched: 0 }
+  );
+  return { ...i, seasons };
+}
+
 /** Duración estimada para ordenar: minutos de peli o total de la serie. */
 const itemDuration = (it) =>
   it.type === "movie" ? (it.runtime || 999) : seriesProgress(it).total * 45;
@@ -401,7 +416,7 @@ function LibraryView({ lib, type, tab, onTab, onOpen, onAdvance, onResume }) {
 
 /* ---------- ficha (bottom sheet) ---------- */
 
-function DetailSheet({ item, onClose, onSetStatus, onSetEpisode, onAdvance, onRate, onRewatch, onRemove }) {
+function DetailSheet({ item, preview = false, onClose, onSetStatus, onSetEpisode, onAdvance, onRate, onRewatch, onRemove }) {
   const isSeries = item.type === "series";
   const prog = isSeries ? seriesProgress(item) : null;
   const left = lastSeenLabel(item);
@@ -433,6 +448,13 @@ function DetailSheet({ item, onClose, onSetStatus, onSetEpisode, onAdvance, onRa
 
           {item.synopsis && (
             <p className="text-sm leading-relaxed text-fog">{item.synopsis}</p>
+          )}
+
+          {preview && (
+            <p className="flex items-center gap-2 rounded-2xl bg-brass/10 p-3.5 text-xs font-semibold leading-relaxed text-brass2 ring-1 ring-brass/25">
+              <Plus size={14} className="shrink-0" />
+              Aún no está en tu videoteca: elige un estado{isSeries ? " o toca el último capítulo que viste" : ""} y se guarda sola.
+            </p>
           )}
 
           <div className="flex flex-wrap gap-2">
@@ -556,12 +578,14 @@ function DetailSheet({ item, onClose, onSetStatus, onSetEpisode, onAdvance, onRa
             </>
           )}
 
-          <button
-            onClick={() => onRemove(item)}
-            className="mx-auto flex items-center gap-1.5 text-xs font-semibold text-fog/70 transition-colors hover:text-red-400"
-          >
-            <Trash2 size={13} /> Eliminar de mi biblioteca
-          </button>
+          {!preview && (
+            <button
+              onClick={() => onRemove(item)}
+              className="mx-auto flex items-center gap-1.5 text-xs font-semibold text-fog/70 transition-colors hover:text-red-400"
+            >
+              <Trash2 size={13} /> Eliminar de mi videoteca
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -570,7 +594,7 @@ function DetailSheet({ item, onClose, onSetStatus, onSetEpisode, onAdvance, onRa
 
 /* ---------- añadir (buscador) ---------- */
 
-function AddSheet({ lib, tmdbKey, onClose, onAdd }) {
+function AddSheet({ lib, tmdbKey, onClose, onAdd, onPreview }) {
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState("all");
   const [online, setOnline] = useState(null); // null = sin búsqueda online activa
@@ -641,16 +665,22 @@ function AddSheet({ lib, tmdbKey, onClose, onAdd }) {
             return (
               <div key={c.tmdbId || c.title} className="rounded-2xl bg-panel2 p-2.5 ring-1 ring-line">
                 <div className="flex items-center gap-3">
-                  <Poster item={c} className="h-16 w-12 shrink-0 rounded-xl" emojiClass="text-xl" />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-bold text-snow">{c.title}</p>
-                    <p className="truncate text-xs text-fog">
-                      {c.type === "movie" ? "Película" : "Serie"}{c.year ? ` · ${c.year}` : ""}
-                    </p>
-                    {c.synopsis && (
-                      <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-fog/80">{c.synopsis}</p>
-                    )}
-                  </div>
+                  <button
+                    onClick={() => onPreview(c)}
+                    className="flex min-w-0 flex-1 items-center gap-3 text-left transition-transform active:scale-[.98]"
+                    aria-label={`Ver ficha de ${c.title}`}
+                  >
+                    <Poster item={c} className="h-16 w-12 shrink-0 rounded-xl" emojiClass="text-xl" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-bold text-snow">{c.title}</p>
+                      <p className="truncate text-xs text-fog">
+                        {c.type === "movie" ? "Película" : "Serie"}{c.year ? ` · ${c.year}` : ""}
+                      </p>
+                      {c.synopsis && (
+                        <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-fog/80">{c.synopsis}</p>
+                      )}
+                    </div>
+                  </button>
                   {added ? (
                     <span className="shrink-0 rounded-full bg-mint/10 px-2.5 py-1 text-[10px] font-bold text-mint ring-1 ring-mint/30">
                       ✓ En tu lista
@@ -779,8 +809,8 @@ function StatsView({ lib, tmdbKey, onSaveKey, onReset, onExport, onImport }) {
           <Download size={15} className="text-brass" /> Copia de seguridad
         </p>
         <p className="mt-1.5 text-xs leading-relaxed text-fog">
-          Exporta tu biblioteca a un archivo JSON y guárdalo donde quieras. Importar
-          reemplaza la biblioteca actual por la del archivo.
+          Exporta tu videoteca a un archivo JSON y guárdalo donde quieras. Importar
+          reemplaza la videoteca actual por la del archivo.
         </p>
         <div className="mt-3 flex gap-2">
           <button
@@ -818,7 +848,7 @@ function StatsView({ lib, tmdbKey, onSaveKey, onReset, onExport, onImport }) {
       </button>
 
       <p className="mt-4 text-center text-xs text-fog/70">
-        Tu biblioteca se guarda en este dispositivo · nunca sale de él
+        Tu videoteca se guarda en este dispositivo · nunca sale de él
       </p>
     </div>
   );
@@ -847,6 +877,7 @@ export default function App() {
   const [movieTab, setMovieTab] = useState("watching");
   const [seriesTab, setSeriesTab] = useState("watching");
   const [detailId, setDetailId] = useState(null);
+  const [preview, setPreview] = useState(null); // ficha de un título aún fuera de la videoteca
   const [addOpen, setAddOpen] = useState(false);
   const [toast, setToast] = useState(null);
   const [posters, setPosters] = useState(loadPosterCache);
@@ -912,16 +943,10 @@ export default function App() {
   /* fija el último episodio visto con un toque (toggle si repites en el mismo) */
   const setEpisode = (item, seasonIdx, ep) => {
     patch(item.id, (i) => {
-      const already = i.seasons[seasonIdx].watched === ep && i.seasons.every((s, si) =>
-        si < seasonIdx ? s.watched === s.eps : si > seasonIdx ? s.watched === 0 : true
-      );
-      const target = already ? ep - 1 : ep;
-      const seasons = i.seasons.map((s, si) =>
-        si < seasonIdx ? { ...s, watched: s.eps } : si === seasonIdx ? { ...s, watched: target } : { ...s, watched: 0 }
-      );
-      const done = seasons.every((s) => s.watched === s.eps);
-      if (done) return finish({ ...i, seasons });
-      return { ...i, seasons, status: i.status === "watched" ? "watching" : i.status };
+      const next = withLastEpisode(i, seasonIdx, ep);
+      const done = next.seasons.every((s) => s.watched === s.eps);
+      if (done) return finish(next);
+      return { ...next, status: i.status === "watched" ? "watching" : i.status };
     });
   };
 
@@ -966,6 +991,41 @@ export default function App() {
     }
     setLib((L) => [{ ...item, id: ++nextId, status, addedAt: Date.now(), poster: { ...item.poster } }, ...L]);
     say(`＋ «${item.title}» en «${STATUS[status].single}»`);
+  };
+
+  /* abrir un resultado de búsqueda: ficha real si ya está, preview si no */
+  const openFromSearch = async (c) => {
+    const existing = lib.find((i) => i.title === c.title && i.type === c.type);
+    if (existing) { setDetailId(existing.id); return; }
+    let item = c;
+    if (c.tmdbId) {
+      try { item = await hydrateTmdbItem(c, tmdbKey); } catch { /* preview con lo que hay */ }
+    }
+    if (item.type === "series" && !item.seasons) item = { ...item, seasons: [{ eps: 8, watched: 0 }] };
+    setPreview({ ...item, status: undefined });
+  };
+
+  /* primera acción dentro de la preview ⇒ se guarda en la videoteca con esa acción hecha */
+  const adopt = (c, status, mutate) => {
+    let item = { ...c, id: ++nextId, status, addedAt: Date.now(), poster: { ...c.poster } };
+    if (mutate) item = mutate(item);
+    setLib((L) => [item, ...L]);
+    setPreview(null);
+    setDetailId(item.id);
+    const where = lastSeenLabel(item);
+    say(
+      item.status === "watching" && where
+        ? `＋ «${item.title}» — te quedaste en ${where}`
+        : `＋ «${item.title}» en «${STATUS[item.status].single}»`
+    );
+  };
+
+  const adoptEpisode = (c, seasonIdx, ep) => {
+    adopt(c, "watching", (item) => {
+      const next = withLastEpisode(item, seasonIdx, ep);
+      const done = next.seasons.every((s) => s.watched === s.eps);
+      return done ? { ...next, status: "watched" } : next;
+    });
   };
 
   const saveKey = (key) => {
@@ -1049,6 +1109,10 @@ export default function App() {
 
       <TabBar tab={tab} onTab={setTab} onAdd={() => setAddOpen(true)} />
 
+      {addOpen && (
+        <AddSheet lib={lib} tmdbKey={tmdbKey} onClose={() => setAddOpen(false)}
+          onAdd={addFromCatalog} onPreview={openFromSearch} />
+      )}
       {detail && (
         <DetailSheet
           item={detail}
@@ -1061,7 +1125,19 @@ export default function App() {
           onRemove={remove}
         />
       )}
-      {addOpen && <AddSheet lib={lib} tmdbKey={tmdbKey} onClose={() => setAddOpen(false)} onAdd={addFromCatalog} />}
+      {preview && (
+        <DetailSheet
+          item={preview}
+          preview
+          onClose={() => setPreview(null)}
+          onSetStatus={(it, s) => adopt(it, s)}
+          onSetEpisode={adoptEpisode}
+          onAdvance={() => {}}
+          onRate={() => {}}
+          onRewatch={() => {}}
+          onRemove={() => {}}
+        />
+      )}
 
       {toast && (
         <div key={toast.key} className="animate-toast pointer-events-none fixed inset-x-0 bottom-24 z-50 flex justify-center px-6">
