@@ -2,13 +2,13 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState } from 
 import {
   ArrowDownAZ, Ban, CalendarDays, Check, ChevronRight, Clapperboard, Clock3, Dices,
   Download, Film, Flame, Globe, History, Home, KeyRound, Pause, Play, Plus, Popcorn,
-  Repeat, RotateCcw, Search, Share2, Sparkles, Star, StickyNote, Timer, Trash2, Tv,
-  Upload, X,
+  Repeat, RotateCcw, Search, Share2, Sparkles, Star, StickyNote, ThumbsDown, Timer,
+  Trash2, Tv, Upload, X,
 } from "lucide-react";
 import { seedLibrary, catalog } from "./data.js";
 import {
-  checkSeasonUpdates, enrichPosters, hydrateTmdbItem, loadPosterCache, loadTmdbKey,
-  posterKey, saveTmdbKey, searchTmdb,
+  checkSeasonUpdates, enrichPosters, fetchTrending, hydrateTmdbItem, loadPosterCache,
+  loadTmdbKey, posterKey, saveTmdbKey, searchTmdb,
 } from "./enrich.js";
 import { shareCard } from "./share.js";
 
@@ -20,12 +20,13 @@ const STATUS = {
   paused: { label: "En pausa", single: "En pausa", icon: Pause },
   watched: { label: "Vistas", single: "Vista", icon: Check },
   dropped: { label: "Abandonadas", single: "Abandonada", icon: Ban },
+  skipped: { label: "Ni con un palo", single: "Ni con un palo", icon: ThumbsDown },
 };
 
 /* estados ofrecidos por tipo: «En pausa» solo tiene sentido en series */
 const STATUSES_FOR = {
-  movie: ["watchlist", "watching", "watched", "dropped"],
-  series: ["watchlist", "watching", "paused", "watched", "dropped"],
+  movie: ["watchlist", "watching", "watched", "dropped", "skipped"],
+  series: ["watchlist", "watching", "paused", "watched", "dropped", "skipped"],
 };
 
 function seriesProgress(item) {
@@ -236,7 +237,7 @@ function TonightRow({ item, onStart, onOpen }) {
   );
 }
 
-function HomeView({ lib, streak, pausedNews, onAdvance, onStart, onOpen, onAdd, onPaused, onSurprise }) {
+function HomeView({ lib, streak, pausedNews, onAdvance, onStart, onOpen, onAdd, onPaused, onSurprise, onDiscover }) {
   const watching = lib.filter((i) => i.status === "watching");
   const watchlist = lib.filter((i) => i.status === "watchlist");
   const watched = lib.filter((i) => i.status === "watched");
@@ -292,6 +293,19 @@ function HomeView({ lib, streak, pausedNews, onAdvance, onStart, onOpen, onAdd, 
             <ChevronRight size={13} />
           </button>
         )}
+      </section>
+
+      <section className="px-5">
+        <button
+          onClick={onDiscover}
+          className="flex w-full items-center justify-between rounded-3xl bg-gradient-to-r from-brass/20 to-brass/5 p-4 ring-1 ring-brass/30 transition-transform active:scale-[.98]"
+        >
+          <span className="text-left">
+            <span className="block text-base font-extrabold tracking-tight text-snow">🔥 Descubrir</span>
+            <span className="mt-0.5 block text-xs text-fog">desliza y decide: 🥢 no · ➕ por ver · ✓ vista</span>
+          </span>
+          <ChevronRight size={18} className="shrink-0 text-brass" />
+        </button>
       </section>
 
       <section className="px-5">
@@ -570,6 +584,13 @@ function DetailSheet({ item, preview = false, update, onApplyUpdate, onNote, onS
             </p>
           )}
 
+          {item.status === "skipped" && (
+            <p className="flex items-center gap-2 rounded-2xl bg-panel2 p-3.5 text-xs leading-relaxed text-fog ring-1 ring-line">
+              <ThumbsDown size={14} className="shrink-0 text-fog" />
+              Ni con un palo 🥢 — no volverá a aparecer en Descubrir ni como sugerencia. Cambia el estado si un día te reconcilias.
+            </p>
+          )}
+
           {item.status === "watched" && (
             <div className="flex items-center justify-between rounded-2xl bg-panel2 p-4 ring-1 ring-line">
               <p className="text-sm font-semibold text-snow">Tu nota</p>
@@ -715,7 +736,7 @@ function AddSheet({ lib, tmdbKey, onClose, onAdd, onPreview }) {
     return () => clearTimeout(t);
   }, [q, tmdbKey]);
 
-  const inLib = (c) => lib.some((i) => i.title === c.title && i.type === c.type);
+  const inLib = (c) => lib.find((i) => i.title === c.title && i.type === c.type);
   const pool = online ?? catalog.filter((c) => c.title.toLowerCase().includes(q.trim().toLowerCase()));
   const results = pool.filter((c) => filter === "all" || c.type === filter);
 
@@ -762,7 +783,8 @@ function AddSheet({ lib, tmdbKey, onClose, onAdd, onPreview }) {
             </p>
           )}
           {results.map((c) => {
-            const added = inLib(c);
+            const owned = inLib(c);
+            const added = !!owned;
             return (
               <div key={c.tmdbId || c.title} className="rounded-2xl bg-panel2 p-2.5 ring-1 ring-line">
                 <div className="flex items-center gap-3">
@@ -783,9 +805,15 @@ function AddSheet({ lib, tmdbKey, onClose, onAdd, onPreview }) {
                     </div>
                   </button>
                   {added ? (
-                    <span className="shrink-0 rounded-full bg-mint/10 px-2.5 py-1 text-[10px] font-bold text-mint ring-1 ring-mint/30">
-                      ✓ En tu lista
-                    </span>
+                    owned.status === "skipped" ? (
+                      <span className="shrink-0 rounded-full bg-white/5 px-2.5 py-1 text-[10px] font-bold text-fog ring-1 ring-line">
+                        🥢 Ni con un palo
+                      </span>
+                    ) : (
+                      <span className="shrink-0 rounded-full bg-mint/10 px-2.5 py-1 text-[10px] font-bold text-mint ring-1 ring-mint/30">
+                        ✓ En tu lista
+                      </span>
+                    )
                   ) : (
                     <div className="flex shrink-0 flex-col gap-1.5">
                       <button onClick={() => onAdd(c, "watchlist")} className="add-mini justify-center" aria-label={`Añadir ${c.title} a Por ver`}>
@@ -810,6 +838,132 @@ function AddSheet({ lib, tmdbKey, onClose, onAdd, onPreview }) {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+
+/* ---------- Descubrir: desliza y decide (el «tinder» de pelis) ---------- */
+
+const SWIPE = {
+  left: { status: "skipped", label: "NI CON UN PALO", emoji: "🥢", color: "#97a3bd" },
+  up: { status: "watchlist", label: "POR VER", emoji: "➕", color: "#f4b43e" },
+  right: { status: "watched", label: "VISTA", emoji: "✓", color: "#4ade80" },
+};
+
+function DiscoverDeck({ cards, canLoadMore, onDecide, onLoadMore, onClose }) {
+  const [drag, setDrag] = useState(null);   // {dx, dy} mientras arrastras
+  const [fly, setFly] = useState(null);     // dirección de salida animada
+  const startRef = useRef(null);
+
+  const current = cards[0];
+  const dir = drag
+    ? drag.dy < -70 && Math.abs(drag.dy) > Math.abs(drag.dx) ? "up"
+      : drag.dx > 70 ? "right" : drag.dx < -70 ? "left" : null
+    : null;
+
+  const release = () => {
+    if (fly) return;
+    if (dir) {
+      setFly(dir);
+      setTimeout(() => { onDecide(current, dir); setFly(null); setDrag(null); }, 260);
+    } else {
+      setDrag(null);
+    }
+  };
+  const decideByButton = (d) => {
+    if (fly || !current) return;
+    setFly(d);
+    setTimeout(() => { onDecide(current, d); setFly(null); setDrag(null); }, 260);
+  };
+
+  const flyTransform = {
+    left: "translate(-120vw, 0) rotate(-24deg)",
+    right: "translate(120vw, 0) rotate(24deg)",
+    up: "translate(0, -120vh)",
+  };
+
+  return (
+    <div className="fixed inset-0 z-40 flex flex-col bg-ink" role="dialog" aria-modal="true">
+      <div className="flex items-center justify-between px-5 pb-2 pt-6">
+        <div>
+          <h2 className="text-xl font-extrabold tracking-tight text-snow">Descubrir</h2>
+          <p className="text-xs text-fog">desliza: 🥢 ni con un palo · ⬆ por ver · ✓ vista</p>
+        </div>
+        <button onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-full bg-white/5 text-snow transition-transform active:scale-90" aria-label="Cerrar Descubrir">
+          <X size={18} />
+        </button>
+      </div>
+
+      <div className="relative min-h-0 flex-1 px-6 py-3">
+        {cards.length === 0 ? (
+          <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
+            <p className="text-4xl">🍿</p>
+            <p className="max-w-60 text-sm text-fog">No quedan candidatos por ahora.</p>
+            {canLoadMore && (
+              <button onClick={onLoadMore} className="rounded-full bg-brass px-4 py-2.5 text-sm font-bold text-ink transition-transform active:scale-95">
+                Cargar más
+              </button>
+            )}
+          </div>
+        ) : (
+          cards.slice(0, 3).map((c, i) => {
+            const top = i === 0;
+            const style = top
+              ? fly
+                ? { transform: flyTransform[fly], opacity: 0, transition: "transform .26s ease-in, opacity .26s ease-in" }
+                : drag
+                  ? { transform: `translate(${drag.dx}px, ${drag.dy}px) rotate(${drag.dx * 0.05}deg)` }
+                  : { transition: "transform .2s ease-out" }
+              : { transform: `scale(${1 - i * 0.05}) translateY(${i * 14}px)`, transition: "transform .25s ease-out" };
+            return (
+              <div
+                key={c.tmdbId || c.title}
+                className="absolute inset-x-6 top-3 bottom-3 touch-none select-none overflow-hidden rounded-[28px] bg-panel ring-1 ring-line"
+                style={{ ...style, zIndex: 10 - i }}
+                onPointerDown={top ? (e) => { startRef.current = { x: e.clientX, y: e.clientY }; e.currentTarget.setPointerCapture(e.pointerId); } : undefined}
+                onPointerMove={top ? (e) => { if (startRef.current) setDrag({ dx: e.clientX - startRef.current.x, dy: e.clientY - startRef.current.y }); } : undefined}
+                onPointerUp={top ? () => { startRef.current = null; release(); } : undefined}
+                onPointerCancel={top ? () => { startRef.current = null; setDrag(null); } : undefined}
+              >
+                <Poster item={c} className="h-3/5 w-full" emojiClass="text-7xl" />
+                <div className="flex h-2/5 flex-col gap-1.5 p-4">
+                  <p className="text-xl font-extrabold tracking-tight text-snow">{c.title}</p>
+                  <p className="text-xs text-fog">
+                    {c.type === "movie" ? "Película" : "Serie"}{c.year ? ` · ${c.year}` : ""}{c.runtime ? ` · ${c.runtime} min` : ""}
+                  </p>
+                  {c.synopsis && <p className="line-clamp-4 text-sm leading-relaxed text-fog">{c.synopsis}</p>}
+                </div>
+                {top && dir && (
+                  <span
+                    className="absolute left-1/2 top-16 -translate-x-1/2 rounded-2xl px-4 py-2 text-2xl font-extrabold tracking-widest"
+                    style={{ color: SWIPE[dir].color, border: `4px solid ${SWIPE[dir].color}`, background: "rgba(11,14,22,.72)", transform: `translateX(-50%) rotate(${dir === "left" ? -8 : dir === "right" ? 8 : 0}deg)` }}
+                  >
+                    {SWIPE[dir].emoji} {SWIPE[dir].label}
+                  </span>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {current && (
+        <div className="flex items-center justify-center gap-5 px-5 pb-[max(env(safe-area-inset-bottom),20px)] pt-2">
+          <button onClick={() => decideByButton("left")} aria-label="Ni con un palo"
+            className="flex h-14 w-14 items-center justify-center rounded-full bg-panel text-2xl ring-1 ring-line transition-transform active:scale-90">
+            🥢
+          </button>
+          <button onClick={() => decideByButton("up")} aria-label="Añadir a Por ver"
+            className="flex h-16 w-16 items-center justify-center rounded-full bg-brass text-ink shadow-lg shadow-brass/30 transition-transform active:scale-90">
+            <Plus size={30} strokeWidth={2.75} />
+          </button>
+          <button onClick={() => decideByButton("right")} aria-label="Marcar como vista"
+            className="flex h-14 w-14 items-center justify-center rounded-full bg-mint/15 text-mint ring-1 ring-mint/40 transition-transform active:scale-90">
+            <Check size={26} strokeWidth={3} />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -1040,6 +1194,8 @@ export default function App() {
   const [tmdbKey, setTmdbKey] = useState(loadTmdbKey);
   const [activity, setActivity] = useState(loadActivity);
   const [updates, setUpdates] = useState({}); // series con episodios nuevos en TMDB
+  const [deck, setDeck] = useState(null); // Descubrir: { cards, page } o null
+  const deckLoading = useRef(false);
   const toastTimer = useRef(null);
 
   // diario de actividad: +n capítulos/pelis marcados hoy
@@ -1170,8 +1326,17 @@ export default function App() {
       catch { /* si falla, se añade igualmente con lo que hay */ }
       if (item.type === "series" && !item.seasons) item.seasons = [{ eps: 8, watched: 0 }];
     }
-    setLib((L) => [{ ...item, id: ++nextId, status, addedAt: Date.now(), poster: { ...item.poster } }, ...L]);
-    say(`＋ «${item.title}» en «${STATUS[status].single}»`);
+    let entry = { ...item, id: ++nextId, status, addedAt: Date.now(), poster: { ...item.poster } };
+    if (status === "watched") {
+      entry = {
+        ...entry,
+        watchedAt: Date.now(),
+        seasons: entry.seasons ? entry.seasons.map((s) => ({ ...s, watched: s.eps })) : entry.seasons,
+      };
+      logActivity(1);
+    }
+    setLib((L) => [entry, ...L]);
+    say(`＋ «${entry.title}» en «${STATUS[status].single}»`);
   };
 
   /* abrir un resultado de búsqueda: ficha real si ya está, preview si no */
@@ -1231,7 +1396,7 @@ export default function App() {
   /* tarjeta para compartir (Web Share en móvil, descarga PNG en escritorio) */
   const doShare = async (item) => {
     try {
-      const result = await shareCard(item, item.img || posters[posterKey(item)]);
+      const result = await shareCard(item, [item.img, posters[posterKey(item)]]);
       say(result === "shared" ? "📤 Tarjeta compartida" : "🖼️ Tarjeta descargada");
     } catch {
       say("No se pudo crear la tarjeta");
@@ -1253,6 +1418,50 @@ export default function App() {
       return n;
     });
     say(`🎉 «${item.title}» actualizada con los episodios nuevos`);
+  };
+
+  /* Descubrir: candidatos que no están ya en tu videoteca */
+  const notOwned = (cards) => {
+    const have = new Set(lib.map((i) => `${i.type}:${i.title}`));
+    return cards.filter((c) => !have.has(`${c.type}:${c.title}`));
+  };
+
+  const openDiscover = async () => {
+    setDeck({ cards: notOwned(catalog), page: 0 });
+    if (tmdbKey && !deckLoading.current) {
+      deckLoading.current = true;
+      try {
+        const trending = await fetchTrending(tmdbKey, 1);
+        setDeck({ cards: notOwned(trending), page: 1 });
+      } catch { /* nos quedamos con el catálogo local */ }
+      deckLoading.current = false;
+    }
+  };
+
+  const deckMore = async () => {
+    if (!tmdbKey || !deck || deckLoading.current) return;
+    deckLoading.current = true;
+    try {
+      const trending = await fetchTrending(tmdbKey, deck.page + 1);
+      setDeck((d) => d && { cards: [...d.cards, ...notOwned(trending)], page: d.page + 1 });
+    } catch { say("Sin conexión con TMDB"); }
+    deckLoading.current = false;
+  };
+
+  const deckDecide = (card, dir) => {
+    const { status } = SWIPE[dir];
+    if (status === "skipped") {
+      setLib((L) => [{ ...card, id: ++nextId, status, addedAt: Date.now(), poster: { ...card.poster } }, ...L]);
+      say(`🥢 «${card.title}»: ni con un palo`);
+    } else {
+      addFromCatalog(card, status); // hidrata TMDB (temporadas/duración) y fecha si es «vista»
+    }
+    setDeck((d) => {
+      if (!d) return d;
+      const cards = d.cards.filter((c) => c !== card);
+      if (cards.length <= 2 && tmdbKey) deckMore();
+      return { ...d, cards };
+    });
   };
 
   const saveKey = (key) => {
@@ -1321,7 +1530,7 @@ export default function App() {
             onStart={(it) => { setStatus(it, "watching"); }}
             onOpen={setDetailId} onAdd={() => setAddOpen(true)}
             onPaused={() => { setSeriesTab("paused"); setTab("series"); }}
-            onSurprise={surprise} />
+            onSurprise={surprise} onDiscover={openDiscover} />
         )}
         {tab === "movie" && (
           <LibraryView lib={lib} type="movie" tab={movieTab} onTab={setMovieTab} updates={updates}
@@ -1342,6 +1551,10 @@ export default function App() {
       {addOpen && (
         <AddSheet lib={lib} tmdbKey={tmdbKey} onClose={() => setAddOpen(false)}
           onAdd={addFromCatalog} onPreview={openFromSearch} />
+      )}
+      {deck && (
+        <DiscoverDeck cards={deck.cards} canLoadMore={!!tmdbKey}
+          onDecide={deckDecide} onLoadMore={deckMore} onClose={() => setDeck(null)} />
       )}
       {detail && (
         <DetailSheet

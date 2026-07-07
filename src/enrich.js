@@ -76,23 +76,34 @@ export async function enrichPosters(items, apiKey, onUpdate) {
 
 /* ---------- búsqueda online con TMDB (opcional, con API key) ---------- */
 
+const mapTmdbResult = (r) => ({
+  tmdbId: r.id,
+  type: r.media_type === "tv" ? "series" : "movie",
+  title: r.media_type === "tv" ? r.name : r.title,
+  year: parseInt((r.first_air_date || r.release_date || "").slice(0, 4)) || "",
+  genre: r.media_type === "tv" ? "Serie · TMDB" : "Película · TMDB",
+  synopsis: r.overview || "",
+  released: r.first_air_date || r.release_date || undefined,
+  img: r.poster_path ? `https://image.tmdb.org/t/p/w342${r.poster_path}` : undefined,
+  poster: { from: "#3b4863", to: "#0b0e16", emoji: r.media_type === "tv" ? "📺" : "🎬" },
+});
+
 export async function searchTmdb(query, apiKey) {
   const q = new URLSearchParams({ api_key: apiKey, language: "es-ES", query, include_adult: "false" });
   const j = await getJSON(`https://api.themoviedb.org/3/search/multi?${q}`);
   return (j.results || [])
     .filter((r) => r.media_type === "movie" || r.media_type === "tv")
     .slice(0, 12)
-    .map((r) => ({
-      tmdbId: r.id,
-      type: r.media_type === "tv" ? "series" : "movie",
-      title: r.media_type === "tv" ? r.name : r.title,
-      year: parseInt((r.first_air_date || r.release_date || "").slice(0, 4)) || "",
-      genre: r.media_type === "tv" ? "Serie · TMDB" : "Película · TMDB",
-      synopsis: r.overview || "",
-      released: r.first_air_date || r.release_date || undefined,
-      img: r.poster_path ? `https://image.tmdb.org/t/p/w342${r.poster_path}` : undefined,
-      poster: { from: "#3b4863", to: "#0b0e16", emoji: r.media_type === "tv" ? "📺" : "🎬" },
-    }));
+    .map(mapTmdbResult);
+}
+
+/** Candidatos para «Descubrir»: lo más visto de la semana en TMDB. */
+export async function fetchTrending(apiKey, page = 1) {
+  const q = new URLSearchParams({ api_key: apiKey, language: "es-ES", page: String(page) });
+  const j = await getJSON(`https://api.themoviedb.org/3/trending/all/week?${q}`);
+  return (j.results || [])
+    .filter((r) => r.media_type === "movie" || r.media_type === "tv")
+    .map(mapTmdbResult);
 }
 
 /** Completa un resultado de TMDB antes de añadirlo: temporadas/duración y géneros reales. */

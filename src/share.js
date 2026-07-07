@@ -21,7 +21,7 @@ function loadImage(url) {
   });
 }
 
-export async function shareCard(item, posterUrl) {
+export async function shareCard(item, posterUrls = []) {
   const W = 1080, H = 1350;
   const c = document.createElement("canvas");
   c.width = W; c.height = H;
@@ -31,9 +31,9 @@ export async function shareCard(item, posterUrl) {
   ctx.fillStyle = "#0b0e16";
   ctx.fillRect(0, 0, W, H);
 
-  // póster (imagen real si se puede pintar, degradado + glifo si no)
-  const PX = 90, PY = 96, PW = W - 180, PH = 660;
-  roundRect(ctx, PX, PY, PW, PH, 48);
+  // póster vertical 2:3 centrado, como en el cine
+  const PW = 520, PH = 780, PX = (W - PW) / 2, PY = 80;
+  roundRect(ctx, PX, PY, PW, PH, 40);
   ctx.save();
   ctx.clip();
   const g = ctx.createLinearGradient(PX, PY, PX + PW, PY + PH);
@@ -41,22 +41,29 @@ export async function shareCard(item, posterUrl) {
   g.addColorStop(1, item.poster.to);
   ctx.fillStyle = g;
   ctx.fillRect(PX, PY, PW, PH);
+  // probamos cada fuente de carátula: la primera que el canvas pueda pintar, gana
   let painted = false;
-  if (posterUrl) {
+  for (const url of posterUrls.filter(Boolean)) {
     try {
-      const img = await loadImage(posterUrl);
+      const img = await loadImage(url.replace("/t/p/w342", "/t/p/w500"));
       const scale = Math.max(PW / img.width, PH / img.height);
       const iw = img.width * scale, ih = img.height * scale;
       ctx.drawImage(img, PX + (PW - iw) / 2, PY + (PH - ih) / 2, iw, ih);
       painted = true;
-    } catch { /* degradado */ }
+      break;
+    } catch { /* siguiente candidata */ }
   }
   if (!painted) {
-    ctx.font = "230px system-ui";
+    ctx.font = "200px system-ui";
     ctx.textAlign = "center";
-    ctx.fillText(item.poster.emoji, W / 2, PY + PH / 2 + 85);
+    ctx.fillText(item.poster.emoji, W / 2, PY + PH / 2 + 70);
   }
   ctx.restore();
+  // borde sutil sobre el póster
+  roundRect(ctx, PX, PY, PW, PH, 40);
+  ctx.strokeStyle = "rgba(244,180,62,0.35)";
+  ctx.lineWidth = 4;
+  ctx.stroke();
 
   // título (hasta 2 líneas)
   ctx.textAlign = "center";
@@ -71,8 +78,8 @@ export async function shareCard(item, posterUrl) {
   }
   const shown = lines.slice(0, 2);
   if (lines.length > 2) shown[1] += "…";
-  shown.forEach((l, i) => ctx.fillText(l, W / 2, PY + PH + 130 + i * 84));
-  let y = PY + PH + 130 + shown.length * 84;
+  shown.forEach((l, i) => ctx.fillText(l, W / 2, PY + PH + 110 + i * 84));
+  let y = PY + PH + 110 + shown.length * 84;
 
   // estrellas
   if (item.rating) {

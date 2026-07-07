@@ -163,3 +163,10 @@ diario cacheado + fusión de temporadas conservando el progreso), filtro por gé
 en las bibliotecas (géneros reales de TMDB al añadir), tarjeta compartible «Acabo
 de verla» (canvas → Web Share en móvil / PNG en escritorio), y nota media + podio
 personal en Stats. Proyecto Capacitor en android/ para APK y Play Store.
+
+Tercera tanda: estado «Ni con un palo» (lista negra reversible: pestaña propia,
+excluida de sugerencias y de Descubrir, con marca 🥢 en el buscador), modo
+**Descubrir** tipo deck de swipes (⬅ ni con un palo · ⬆ por ver · ➡ vista, con
+arrastre real y botones; trending semanal de TMDB con clave o catálogo local sin
+ella, paginado automático), y tarjeta compartible v2 con póster vertical 2:3 y
+varias fuentes de carátula (prioriza TMDB, que permite pintarla en canvas).
