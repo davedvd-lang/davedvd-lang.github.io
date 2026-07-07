@@ -95,7 +95,7 @@ export async function searchTmdb(query, apiKey) {
     }));
 }
 
-/** Completa un resultado de TMDB antes de añadirlo: temporadas o duración reales. */
+/** Completa un resultado de TMDB antes de añadirlo: temporadas/duración y géneros reales. */
 export async function hydrateTmdbItem(result, apiKey) {
   const q = new URLSearchParams({ api_key: apiKey, language: "es-ES" });
   if (result.type === "series") {
@@ -103,8 +103,46 @@ export async function hydrateTmdbItem(result, apiKey) {
     const seasons = (j.seasons || [])
       .filter((s) => s.season_number > 0 && s.episode_count > 0)
       .map((s) => ({ eps: s.episode_count, watched: 0 }));
-    return { ...result, seasons: seasons.length ? seasons : [{ eps: 8, watched: 0 }] };
+    const genre = (j.genres || []).slice(0, 2).map((g) => g.name).join(" · ");
+    return { ...result, genre: genre || result.genre, seasons: seasons.length ? seasons : [{ eps: 8, watched: 0 }] };
   }
   const j = await getJSON(`https://api.themoviedb.org/3/movie/${result.tmdbId}?${q}`);
-  return { ...result, runtime: j.runtime || undefined };
+  const genre = (j.genres || []).slice(0, 2).map((g) => g.name).join(" · ");
+  return { ...result, genre: genre || result.genre, runtime: j.runtime || undefined };
+}
+
+/* ---------- aviso de nueva temporada (series en pausa / en curso) ---------- */
+
+const TVCHECK = "butaca:tvcheck:v1";
+
+/** Comprueba en TMDB (máx. una vez al día por serie) si hay episodios nuevos.
+    Llama a onFound(posterKey, [eps por temporada]) por cada serie con novedades. */
+export async function checkSeasonUpdates(items, apiKey, onFound) {
+  if (!apiKey) return;
+  let cache;
+  try { cache = JSON.parse(localStorage.getItem(TVCHECK)) || {}; } catch { cache = {}; }
+  const now = Date.now();
+  for (const it of items) {
+    if (it.type !== "series" || !it.tmdbId) continue;
+    if (!["paused", "watching", "watchlist"].includes(it.status)) continue;
+    const k = posterKey(it);
+    let entry = cache[k];
+    if (!entry || now - entry.ts > 864e5) {
+      try {
+        const q = new URLSearchParams({ api_key: apiKey, language: "es-ES" });
+        const j = await getJSON(`https://api.themoviedb.org/3/tv/${it.tmdbId}?${q}`);
+        entry = {
+          ts: now,
+          seasons: (j.seasons || [])
+            .filter((s) => s.season_number > 0 && s.episode_count > 0)
+            .map((s) => s.episode_count),
+        };
+        cache[k] = entry;
+        try { localStorage.setItem(TVCHECK, JSON.stringify(cache)); } catch { /* sin hueco */ }
+      } catch { continue; /* sin red: se reintenta otro día */ }
+    }
+    const localTotal = it.seasons.reduce((n, s) => n + s.eps, 0);
+    const remoteTotal = entry.seasons.reduce((n, e) => n + e, 0);
+    if (remoteTotal > localTotal) onFound(k, entry.seasons);
+  }
 }

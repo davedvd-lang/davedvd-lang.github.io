@@ -155,3 +155,11 @@ degradado como placeholder/fallback offline), búsqueda online global con API ke
 (temporadas y duraciones reales al añadir), copia de seguridad exportar/importar JSON, y
 PWA instalable con funcionamiento offline (service worker: app shell red-primero,
 carátulas caché-primero, APIs siempre en directo).
+
+Segunda tanda de iteraciones: fechas de visionado reales con diario de actividad
+(racha de días, vistas del año, récord en un día), ruleta «Sorpréndeme» sobre la
+watchlist, notas privadas por título, aviso de nueva temporada vía TMDB (chequeo
+diario cacheado + fusión de temporadas conservando el progreso), filtro por género
+en las bibliotecas (géneros reales de TMDB al añadir), tarjeta compartible «Acabo
+de verla» (canvas → Web Share en móvil / PNG en escritorio), y nota media + podio
+personal en Stats. Proyecto Capacitor en android/ para APK y Play Store.

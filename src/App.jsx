@@ -1,14 +1,16 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowDownAZ, Ban, CalendarDays, Check, ChevronRight, Clapperboard, Clock3, Download, Film,
-  Flame, Globe, History, Home, KeyRound, Pause, Play, Plus, Popcorn, Repeat,
-  RotateCcw, Search, Sparkles, Star, Timer, Trash2, Tv, Upload, X,
+  ArrowDownAZ, Ban, CalendarDays, Check, ChevronRight, Clapperboard, Clock3, Dices,
+  Download, Film, Flame, Globe, History, Home, KeyRound, Pause, Play, Plus, Popcorn,
+  Repeat, RotateCcw, Search, Share2, Sparkles, Star, StickyNote, Timer, Trash2, Tv,
+  Upload, X,
 } from "lucide-react";
 import { seedLibrary, catalog } from "./data.js";
 import {
-  enrichPosters, hydrateTmdbItem, loadPosterCache, loadTmdbKey, posterKey,
-  saveTmdbKey, searchTmdb,
+  checkSeasonUpdates, enrichPosters, hydrateTmdbItem, loadPosterCache, loadTmdbKey,
+  posterKey, saveTmdbKey, searchTmdb,
 } from "./enrich.js";
+import { shareCard } from "./share.js";
 
 /* ---------- helpers de dominio ---------- */
 
@@ -83,6 +85,26 @@ const SORTS = {
   duration: { label: "Duración", icon: Timer, fn: (a, b) => itemDuration(a) - itemDuration(b) },
   alpha: { label: "A–Z", icon: ArrowDownAZ, fn: (a, b) => a.title.localeCompare(b.title, "es") },
 };
+
+/* ---------- diario de actividad (para racha y récords) ---------- */
+
+const ACT_KEY = "butaca:activity:v1";
+
+export function loadActivity() {
+  try { return JSON.parse(localStorage.getItem(ACT_KEY)) || {}; } catch { return {}; }
+}
+
+const dayStr = (d = new Date()) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+/** Días seguidos con actividad, contando hacia atrás (hoy sin actividad aún no la rompe). */
+function streakOf(activity) {
+  const d = new Date();
+  let n = 0;
+  if (!activity[dayStr(d)]) d.setDate(d.getDate() - 1);
+  while (activity[dayStr(d)]) { n++; d.setDate(d.getDate() - 1); }
+  return n;
+}
 
 function hoursWatched(lib) {
   let min = 0;
@@ -214,7 +236,7 @@ function TonightRow({ item, onStart, onOpen }) {
   );
 }
 
-function HomeView({ lib, onAdvance, onStart, onOpen, onAdd, onPaused }) {
+function HomeView({ lib, streak, pausedNews, onAdvance, onStart, onOpen, onAdd, onPaused, onSurprise }) {
   const watching = lib.filter((i) => i.status === "watching");
   const watchlist = lib.filter((i) => i.status === "watchlist");
   const watched = lib.filter((i) => i.status === "watched");
@@ -232,7 +254,10 @@ function HomeView({ lib, onAdvance, onStart, onOpen, onAdd, onPaused }) {
           {greeting} 🍿 ¿Qué toca hoy?
         </h1>
         <div className="mt-4 flex gap-2 overflow-x-auto no-scrollbar">
-          <span className="chip"><Flame size={13} className="text-brass" /> {watching.length} en curso</span>
+          {streak >= 2 && (
+            <span className="chip"><Flame size={13} className="text-brass" /> racha de {streak} días</span>
+          )}
+          <span className="chip"><Play size={13} className="text-brass" /> {watching.length} en curso</span>
           <span className="chip"><Clock3 size={13} className="text-brass" /> {watchlist.length} pendientes</span>
           <span className="chip"><Sparkles size={13} className="text-brass" /> {hoursWatched(lib)} h vistas</span>
         </div>
@@ -260,16 +285,24 @@ function HomeView({ lib, onAdvance, onStart, onOpen, onAdd, onPaused }) {
             className="mx-5 mt-3 flex items-center gap-2 rounded-full bg-panel px-3.5 py-2 text-xs font-semibold text-fog ring-1 ring-line transition-colors active:scale-95"
           >
             <Pause size={12} className="text-brass" />
-            {paused.length === 1 ? "1 serie en pausa" : `${paused.length} series en pausa`} · esperando temporada
+            {paused.length === 1 ? "1 serie en pausa" : `${paused.length} series en pausa`}
+            {pausedNews > 0
+              ? <span className="font-bold text-mint">· ¡{pausedNews} con episodios nuevos!</span>
+              : " · esperando temporada"}
             <ChevronRight size={13} />
           </button>
         )}
       </section>
 
       <section className="px-5">
-        <div className="mb-3 flex items-baseline justify-between">
+        <div className="mb-3 flex items-center justify-between">
           <h2 className="text-lg font-bold text-snow">Para esta noche</h2>
-          <span className="text-xs font-medium text-fog">de tu lista «Por ver»</span>
+          <button
+            onClick={onSurprise}
+            className="flex items-center gap-1.5 rounded-full bg-brass/15 px-3 py-1.5 text-xs font-bold text-brass ring-1 ring-brass/30 transition-transform active:scale-95"
+          >
+            <Dices size={13} /> Sorpréndeme
+          </button>
         </div>
         <div className="space-y-2.5">
           {watchlist.slice(0, 4).map((it) => (
@@ -303,11 +336,17 @@ function HomeView({ lib, onAdvance, onStart, onOpen, onAdd, onPaused }) {
 
 /* ---------- pantalla: biblioteca (Pelis / Series) ---------- */
 
-function LibraryView({ lib, type, tab, onTab, onOpen, onAdvance, onResume }) {
+function LibraryView({ lib, type, tab, updates, onTab, onOpen, onAdvance, onResume }) {
   const [sort, setSort] = useState("added");
+  const [genreF, setGenreF] = useState("all");
   const items = lib.filter((i) => i.type === type);
   const byStatus = (s) => items.filter((i) => i.status === s);
-  const shown = [...byStatus(tab)].sort(SORTS[sort].fn);
+  const genres = [...new Set(
+    items.flatMap((i) => (i.genre || "").split("·").map((g) => g.trim()).filter(Boolean))
+  )].sort((a, b) => a.localeCompare(b, "es"));
+  const shown = [...byStatus(tab)]
+    .filter((i) => genreF === "all" || (i.genre || "").includes(genreF))
+    .sort(SORTS[sort].fn);
   const isSeries = type === "series";
 
   return (
@@ -334,13 +373,13 @@ function LibraryView({ lib, type, tab, onTab, onOpen, onAdvance, onResume }) {
         ))}
       </div>
 
-      <div className="mt-3 flex items-center gap-1.5">
-        <span className="mr-0.5 text-[10px] font-bold uppercase tracking-wide text-fog/60">Ordenar</span>
+      <div className="-mx-5 mt-3 flex items-center gap-1.5 overflow-x-auto px-5 no-scrollbar">
+        <span className="mr-0.5 shrink-0 text-[10px] font-bold uppercase tracking-wide text-fog/60">Ordenar</span>
         {Object.entries(SORTS).map(([k, s]) => (
           <button
             key={k}
             onClick={() => setSort(k)}
-            className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold transition-colors ${
+            className={`flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold transition-colors ${
               sort === k ? "bg-brass/15 text-brass ring-1 ring-brass/30" : "text-fog"
             }`}
           >
@@ -348,6 +387,23 @@ function LibraryView({ lib, type, tab, onTab, onOpen, onAdvance, onResume }) {
           </button>
         ))}
       </div>
+
+      {genres.length >= 2 && (
+        <div className="-mx-5 mt-2 flex items-center gap-1.5 overflow-x-auto px-5 no-scrollbar">
+          <span className="mr-0.5 shrink-0 text-[10px] font-bold uppercase tracking-wide text-fog/60">Género</span>
+          {["all", ...genres].map((g) => (
+            <button
+              key={g}
+              onClick={() => setGenreF(g)}
+              className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold transition-colors ${
+                genreF === g ? "bg-brass/15 text-brass ring-1 ring-brass/30" : "text-fog"
+              }`}
+            >
+              {g === "all" ? "Todos" : g}
+            </button>
+          ))}
+        </div>
+      )}
 
       {shown.length === 0 ? (
         <div className="mt-10 text-center text-sm text-fog">
@@ -376,8 +432,10 @@ function LibraryView({ lib, type, tab, onTab, onOpen, onAdvance, onResume }) {
                     )}
                     {tab === "paused" && (
                       <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-2 pt-5">
-                        <p className="text-[10px] font-bold text-snow/90">
-                          {prog.next ? `Al día · sigue ${epLabel(prog.next)}` : "Esperando temporada"}
+                        <p className={`text-[10px] font-bold ${updates[posterKey(it)] ? "text-mint" : "text-snow/90"}`}>
+                          {updates[posterKey(it)]
+                            ? "🎉 ¡Episodios nuevos!"
+                            : prog.next ? `Al día · sigue ${epLabel(prog.next)}` : "Esperando temporada"}
                         </p>
                       </div>
                     )}
@@ -426,7 +484,7 @@ function LibraryView({ lib, type, tab, onTab, onOpen, onAdvance, onResume }) {
 
 /* ---------- ficha (bottom sheet) ---------- */
 
-function DetailSheet({ item, preview = false, onClose, onSetStatus, onSetEpisode, onAdvance, onRate, onRewatch, onRemove }) {
+function DetailSheet({ item, preview = false, update, onApplyUpdate, onNote, onShare, onClose, onSetStatus, onSetEpisode, onAdvance, onRate, onRewatch, onRemove }) {
   const isSeries = item.type === "series";
   const prog = isSeries ? seriesProgress(item) : null;
   const left = lastSeenLabel(item);
@@ -485,6 +543,15 @@ function DetailSheet({ item, preview = false, onClose, onSetStatus, onSetEpisode
             })}
           </div>
 
+          {update && !preview && (
+            <button
+              onClick={() => onApplyUpdate(item)}
+              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-mint/10 p-3.5 text-sm font-bold text-mint ring-1 ring-mint/30 transition-transform active:scale-[.97]"
+            >
+              🎉 Hay episodios nuevos — actualizar temporadas
+            </button>
+          )}
+
           {item.status === "paused" && (
             <p className="flex items-center gap-2 rounded-2xl bg-panel2 p-3.5 text-xs leading-relaxed text-fog ring-1 ring-line">
               <Pause size={14} className="shrink-0 text-brass" />
@@ -534,6 +601,30 @@ function DetailSheet({ item, preview = false, onClose, onSetStatus, onSetEpisode
               <Repeat size={14} className="shrink-0" />
               Revisionado nº{(item.rewatches || 0) + 1} en curso — tu historial de «vista» se conserva.
             </p>
+          )}
+
+          {item.status === "watched" && !preview && (
+            <button
+              onClick={() => onShare(item)}
+              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-panel2 py-3 text-sm font-bold text-snow ring-1 ring-line transition-transform active:scale-[.97]"
+            >
+              <Share2 size={16} className="text-brass" /> Compartir tarjeta
+            </button>
+          )}
+
+          {!preview && (
+            <div className="rounded-2xl bg-panel2 p-3.5 ring-1 ring-line">
+              <p className="mb-1 flex items-center gap-1.5 text-sm font-semibold text-snow">
+                <StickyNote size={14} className="text-brass" /> Nota privada
+              </p>
+              <textarea
+                value={item.note || ""}
+                onChange={(e) => onNote(item, e.target.value)}
+                placeholder="Solo para ti: «verla con María», «el final se explica en…»"
+                rows={2}
+                className="w-full resize-none bg-transparent text-sm leading-relaxed text-snow outline-none placeholder:text-fog/50"
+              />
+            </div>
           )}
 
           {isSeries && (
@@ -760,10 +851,20 @@ function TabBar({ tab, onTab, onAdd }) {
 
 /* ---------- stats (mini) ---------- */
 
-function StatsView({ lib, tmdbKey, onSaveKey, onReset, onExport, onImport }) {
+function StatsView({ lib, activity, tmdbKey, onSaveKey, onReset, onExport, onImport }) {
   const [draft, setDraft] = useState(tmdbKey);
   const [editKey, setEditKey] = useState(!tmdbKey); // con clave puesta, el bloque se pliega
   const fileRef = useRef(null);
+  const streak = streakOf(activity);
+  const year = new Date().getFullYear();
+  const thisYear = lib.filter((i) => i.watchedAt && new Date(i.watchedAt).getFullYear() === year).length;
+  const rated = lib.filter((i) => i.rating);
+  const avg = rated.length ? (rated.reduce((n, i) => n + i.rating, 0) / rated.length).toFixed(1) : null;
+  const recordDay = Math.max(0, ...Object.values(activity));
+  const podium = [...lib]
+    .filter((i) => i.status === "watched" && i.rating)
+    .sort((a, b) => b.rating - a.rating || (b.rewatches || 0) - (a.rewatches || 0) || (b.watchedAt || 0) - (a.watchedAt || 0))
+    .slice(0, 3);
   const movies = lib.filter((i) => i.type === "movie");
   const series = lib.filter((i) => i.type === "series");
   const eps = series.reduce((n, s) => n + seriesProgress(s).seen, 0);
@@ -774,6 +875,10 @@ function StatsView({ lib, tmdbKey, onSaveKey, onReset, onExport, onImport }) {
     { label: "Series terminadas", value: series.filter((s) => s.status === "watched").length, icon: Check },
     { label: "Revisionados", value: lib.reduce((n, i) => n + (i.rewatches || 0), 0), icon: Repeat },
     { label: "Abandonadas", value: lib.filter((i) => i.status === "dropped").length, icon: Ban },
+    { label: `Vistas en ${year}`, value: thisYear, icon: CalendarDays },
+    { label: "Racha actual", value: streak ? `${streak} ${streak === 1 ? "día" : "días"}` : "—", icon: Flame },
+    { label: "Nota media", value: avg ? `★ ${avg}` : "—", icon: Star },
+    { label: "Récord en un día", value: recordDay ? `${recordDay} caps` : "—", icon: Sparkles },
   ];
   return (
     <div className="px-5 pb-6 pt-6">
@@ -789,6 +894,24 @@ function StatsView({ lib, tmdbKey, onSaveKey, onReset, onExport, onImport }) {
           </div>
         ))}
       </div>
+      {podium.length > 0 && (
+        <section className="mt-6">
+          <h2 className="mb-3 text-lg font-bold text-snow">Tu podio</h2>
+          <div className="grid grid-cols-3 gap-3">
+            {podium.map((it, i) => (
+              <div key={it.id} className="text-center">
+                <div className="relative">
+                  <Poster item={it} className="aspect-[2/3] w-full rounded-2xl ring-1 ring-line" emojiClass="text-3xl" />
+                  <span className="absolute -left-1 -top-2 text-2xl drop-shadow">{["🥇", "🥈", "🥉"][i]}</span>
+                </div>
+                <p className="mt-1.5 truncate text-xs font-bold text-snow">{it.title}</p>
+                <p className="text-[10px] font-semibold text-brass">{"★".repeat(it.rating)}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {tmdbKey && !editKey ? (
         <div className="mt-6 flex items-center justify-between gap-3 rounded-3xl bg-panel p-4 ring-1 ring-line">
           <p className="flex min-w-0 items-center gap-2 text-sm font-bold text-snow">
@@ -915,7 +1038,28 @@ export default function App() {
   const [toast, setToast] = useState(null);
   const [posters, setPosters] = useState(loadPosterCache);
   const [tmdbKey, setTmdbKey] = useState(loadTmdbKey);
+  const [activity, setActivity] = useState(loadActivity);
+  const [updates, setUpdates] = useState({}); // series con episodios nuevos en TMDB
   const toastTimer = useRef(null);
+
+  // diario de actividad: +n capítulos/pelis marcados hoy
+  const logActivity = (n = 1) => {
+    if (n <= 0) return;
+    setActivity((a) => {
+      const next = { ...a, [dayStr()]: (a[dayStr()] || 0) + n };
+      try { localStorage.setItem(ACT_KEY, JSON.stringify(next)); } catch { /* sin hueco */ }
+      return next;
+    });
+  };
+
+  // una vez por apertura: ¿alguna serie en pausa/en curso tiene episodios nuevos?
+  useEffect(() => {
+    if (!tmdbKey) return;
+    checkSeasonUpdates(lib, tmdbKey, (k, seasons) =>
+      setUpdates((u) => ({ ...u, [k]: seasons }))
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tmdbKey]);
 
   // La biblioteca vive solo en tu dispositivo
   useEffect(() => {
@@ -939,16 +1083,18 @@ export default function App() {
 
   const patch = (id, fn) => setLib((L) => L.map((i) => (i.id === id ? fn(i) : i)));
 
-  /* al completar (o completar de nuevo): cuadrar estado y contador de revisionados */
+  /* al completar (o completar de nuevo): cuadrar estado, revisionados y fecha de visionado */
   const finish = (i) => ({
     ...i,
     status: "watched",
+    watchedAt: Date.now(),
     rewatches: i.rewatching ? (i.rewatches || 0) + 1 : i.rewatches,
     rewatching: undefined,
   });
 
   /* +1 capítulo (o terminar película) — la acción de un solo toque */
   const advance = (item) => {
+    logActivity(1);
     if (item.type === "movie") {
       patch(item.id, finish);
       say(item.rewatching ? `🔁 «${item.title}» vista otra vez` : `🎬 «${item.title}» marcada como vista`);
@@ -975,18 +1121,20 @@ export default function App() {
 
   /* fija el último episodio visto con un toque (toggle si repites en el mismo) */
   const setEpisode = (item, seasonIdx, ep) => {
-    patch(item.id, (i) => {
-      const next = withLastEpisode(i, seasonIdx, ep);
-      const done = next.seasons.every((s) => s.watched === s.eps);
-      if (done) return finish(next);
-      return { ...next, status: i.status === "watched" ? "watching" : i.status };
-    });
+    const next = withLastEpisode(item, seasonIdx, ep);
+    logActivity(next.seasons.reduce((n, s) => n + s.watched, 0) - seriesProgress(item).seen);
+    const done = next.seasons.every((s) => s.watched === s.eps);
+    patch(item.id, (i) =>
+      done ? finish({ ...i, seasons: next.seasons })
+        : { ...i, seasons: next.seasons, status: i.status === "watched" ? "watching" : i.status }
+    );
   };
 
   /* revisionado: pelis suman al contador; series reinician el progreso sin perder el historial */
   const rewatch = (item) => {
     if (item.type === "movie") {
-      patch(item.id, (i) => ({ ...i, rewatches: (i.rewatches || 0) + 1 }));
+      logActivity(1);
+      patch(item.id, (i) => ({ ...i, rewatches: (i.rewatches || 0) + 1, watchedAt: Date.now() }));
       say(`🔁 «${item.title}» vista otra vez`);
       return;
     }
@@ -1042,6 +1190,15 @@ export default function App() {
   const adopt = (c, status, mutate) => {
     let item = { ...c, id: ++nextId, status, addedAt: Date.now(), poster: { ...c.poster } };
     if (mutate) item = mutate(item);
+    if (item.status === "watched") {
+      // adoptada como ya vista: temporadas completas y fecha de visionado
+      item = {
+        ...item,
+        watchedAt: Date.now(),
+        seasons: item.seasons ? item.seasons.map((s) => ({ ...s, watched: s.eps })) : item.seasons,
+      };
+      logActivity(1);
+    }
     setLib((L) => [item, ...L]);
     setPreview(null);
     setDetailId(item.id);
@@ -1056,9 +1213,46 @@ export default function App() {
   const adoptEpisode = (c, seasonIdx, ep) => {
     adopt(c, "watching", (item) => {
       const next = withLastEpisode(item, seasonIdx, ep);
+      logActivity(next.seasons.reduce((n, s) => n + s.watched, 0));
       const done = next.seasons.every((s) => s.watched === s.eps);
-      return done ? { ...next, status: "watched" } : next;
+      return done ? { ...next, status: "watched", watchedAt: Date.now() } : next;
     });
+  };
+
+  /* ruleta «¿qué veo hoy?»: un candidato al azar de tu «Por ver» */
+  const surprise = () => {
+    const pool = lib.filter((i) => i.status === "watchlist");
+    if (pool.length === 0) { say("Tu «Por ver» está vacía 🎬"); return; }
+    const pick = pool[Math.floor(Math.random() * pool.length)];
+    setDetailId(pick.id);
+    say(`🎲 ¿Qué tal «${pick.title}»?`);
+  };
+
+  /* tarjeta para compartir (Web Share en móvil, descarga PNG en escritorio) */
+  const doShare = async (item) => {
+    try {
+      const result = await shareCard(item, item.img || posters[posterKey(item)]);
+      say(result === "shared" ? "📤 Tarjeta compartida" : "🖼️ Tarjeta descargada");
+    } catch {
+      say("No se pudo crear la tarjeta");
+    }
+  };
+
+  /* hay episodios nuevos en TMDB: fusionar temporadas conservando tu progreso */
+  const applyUpdate = (item) => {
+    const remote = updates[posterKey(item)];
+    if (!remote) return;
+    patch(item.id, (i) => ({
+      ...i,
+      seasons: remote.map((eps, si) => ({ eps, watched: Math.min(i.seasons[si]?.watched ?? 0, eps) })),
+      status: i.status === "watched" ? "paused" : i.status,
+    }));
+    setUpdates((u) => {
+      const n = { ...u };
+      delete n[posterKey(item)];
+      return n;
+    });
+    say(`🎉 «${item.title}» actualizada con los episodios nuevos`);
   };
 
   const saveKey = (key) => {
@@ -1121,21 +1315,24 @@ export default function App() {
     <div className="mx-auto flex min-h-dvh max-w-md flex-col bg-ink text-snow">
       <main className="flex-1">
         {tab === "home" && (
-          <HomeView lib={lib} onAdvance={advance}
+          <HomeView lib={lib} streak={streakOf(activity)}
+            pausedNews={lib.filter((i) => i.status === "paused" && updates[posterKey(i)]).length}
+            onAdvance={advance}
             onStart={(it) => { setStatus(it, "watching"); }}
             onOpen={setDetailId} onAdd={() => setAddOpen(true)}
-            onPaused={() => { setSeriesTab("paused"); setTab("series"); }} />
+            onPaused={() => { setSeriesTab("paused"); setTab("series"); }}
+            onSurprise={surprise} />
         )}
         {tab === "movie" && (
-          <LibraryView lib={lib} type="movie" tab={movieTab} onTab={setMovieTab}
+          <LibraryView lib={lib} type="movie" tab={movieTab} onTab={setMovieTab} updates={updates}
             onOpen={setDetailId} onAdvance={advance} onResume={(it) => setStatus(it, "watching")} />
         )}
         {tab === "series" && (
-          <LibraryView lib={lib} type="series" tab={seriesTab} onTab={setSeriesTab}
+          <LibraryView lib={lib} type="series" tab={seriesTab} onTab={setSeriesTab} updates={updates}
             onOpen={setDetailId} onAdvance={advance} onResume={(it) => setStatus(it, "watching")} />
         )}
         {tab === "stats" && (
-          <StatsView lib={lib} tmdbKey={tmdbKey} onSaveKey={saveKey} onReset={resetData}
+          <StatsView lib={lib} activity={activity} tmdbKey={tmdbKey} onSaveKey={saveKey} onReset={resetData}
             onExport={exportData} onImport={importData} />
         )}
       </main>
@@ -1149,6 +1346,10 @@ export default function App() {
       {detail && (
         <DetailSheet
           item={detail}
+          update={updates[posterKey(detail)]}
+          onApplyUpdate={applyUpdate}
+          onNote={(it, text) => patch(it.id, (i) => ({ ...i, note: text }))}
+          onShare={doShare}
           onClose={() => setDetailId(null)}
           onSetStatus={setStatus}
           onSetEpisode={setEpisode}

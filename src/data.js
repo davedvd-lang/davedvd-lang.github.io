@@ -72,21 +72,21 @@ export const seedLibrary = [
     addedAt: daysAgo(60),
     poster: { from: "#0d9488", to: "#111827", emoji: "🪨" },
     synopsis: "La familia Kim, en paro, se infiltra empleo a empleo en la casa de los adinerados Park. Una sátira feroz sobre la desigualdad que muta de comedia a pesadilla sin avisar.",
-    status: "watched", rating: 5,
+    status: "watched", rating: 5, watchedAt: daysAgo(58),
   },
   {
     id: id(), type: "movie", title: "Whiplash", year: 2014, genre: "Drama · Música", runtime: 106, rewatches: 2,
     addedAt: daysAgo(90),
     poster: { from: "#f59e0b", to: "#18181b", emoji: "🥁" },
     synopsis: "Un joven baterista de jazz choca con el profesor más brutal del conservatorio, dispuesto a todo con tal de encontrar a su próximo genio. ¿Hasta dónde llega la excelencia?",
-    status: "watched", rating: 5,
+    status: "watched", rating: 5, watchedAt: daysAgo(20),
   },
   {
     id: id(), type: "movie", title: "Her", year: 2013, genre: "Romance · Sci-Fi", runtime: 126,
     addedAt: daysAgo(45),
     poster: { from: "#e11d48", to: "#2a1218", emoji: "📱" },
     synopsis: "En un futuro cercano, un hombre solitario que escribe cartas de amor ajenas se enamora de su sistema operativo. Una historia de amor tan tierna como inquietante.",
-    status: "watched", rating: 4,
+    status: "watched", rating: 4, watchedAt: daysAgo(41),
   },
   {
     id: id(), type: "series", title: "The Last of Us", year: 2023, genre: "Drama · Postapocalíptico",
@@ -109,7 +109,7 @@ export const seedLibrary = [
     addedAt: daysAgo(75),
     poster: { from: "#475569", to: "#0c0a09", emoji: "🏢" },
     synopsis: "Los cuatro hijos del magnate Logan Roy se disputan el control de su imperio mediático mientras él se niega a soltarlo. Shakespeare con jet privado y puñaladas en cada consejo.",
-    status: "watched", rating: 5,
+    status: "watched", rating: 5, watchedAt: daysAgo(70),
     seasons: [{ eps: 10, watched: 10 }, { eps: 10, watched: 10 }, { eps: 9, watched: 9 }, { eps: 10, watched: 10 }],
   },
 ];
