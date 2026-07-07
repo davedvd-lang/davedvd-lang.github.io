@@ -18,6 +18,9 @@ online y global, con carátulas, sinopsis en español y temporadas reales al añ
 **Copia de seguridad**: en **Stats** puedes exportar tu biblioteca a un archivo JSON e
 importarla en otro dispositivo.
 
+**App Android (APK / Play Store)**: el proyecto Capacitor está en `android/` — abre esa
+carpeta en Android Studio y dale a Build. Instrucciones completas en [ANDROID.md](ANDROID.md).
+
 **Desarrollar**:
 
 ```bash

@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowDownAZ, Ban, Check, ChevronRight, Clapperboard, Clock3, Download, Film,
+  ArrowDownAZ, Ban, CalendarDays, Check, ChevronRight, Clapperboard, Clock3, Download, Film,
   Flame, Globe, History, Home, KeyRound, Pause, Play, Plus, Popcorn, Repeat,
   RotateCcw, Search, Sparkles, Star, Timer, Trash2, Tv, Upload, X,
 } from "lucide-react";
@@ -68,8 +68,18 @@ function withLastEpisode(i, seasonIdx, ep) {
 const itemDuration = (it) =>
   it.type === "movie" ? (it.runtime || 999) : seriesProgress(it).total * 45;
 
+/** Fecha de estreno: la completa si la tenemos (TMDB), si no el año. */
+const releaseTs = (it) => {
+  if (it.released) {
+    const t = Date.parse(it.released);
+    if (!Number.isNaN(t)) return t;
+  }
+  return it.year ? Date.UTC(it.year, 0, 1) : 0;
+};
+
 const SORTS = {
   added: { label: "Reciente", icon: History, fn: (a, b) => (b.addedAt || 0) - (a.addedAt || 0) },
+  release: { label: "Estreno", icon: CalendarDays, fn: (a, b) => releaseTs(b) - releaseTs(a) },
   duration: { label: "Duración", icon: Timer, fn: (a, b) => itemDuration(a) - itemDuration(b) },
   alpha: { label: "A–Z", icon: ArrowDownAZ, fn: (a, b) => a.title.localeCompare(b.title, "es") },
 };
@@ -752,6 +762,7 @@ function TabBar({ tab, onTab, onAdd }) {
 
 function StatsView({ lib, tmdbKey, onSaveKey, onReset, onExport, onImport }) {
   const [draft, setDraft] = useState(tmdbKey);
+  const [editKey, setEditKey] = useState(!tmdbKey); // con clave puesta, el bloque se pliega
   const fileRef = useRef(null);
   const movies = lib.filter((i) => i.type === "movie");
   const series = lib.filter((i) => i.type === "series");
@@ -767,7 +778,7 @@ function StatsView({ lib, tmdbKey, onSaveKey, onReset, onExport, onImport }) {
   return (
     <div className="px-5 pb-6 pt-6">
       <h1 className="flex items-center gap-2.5 text-[26px] font-extrabold tracking-tight text-snow">
-        <Sparkles className="text-brass" size={24} /> Tu año en pantalla
+        <Sparkles className="text-brass" size={24} /> Tu tiempo en pantalla
       </h1>
       <div className="mt-5 grid grid-cols-2 gap-3">
         {cells.map((c) => (
@@ -778,31 +789,53 @@ function StatsView({ lib, tmdbKey, onSaveKey, onReset, onExport, onImport }) {
           </div>
         ))}
       </div>
-      <div className="mt-6 rounded-3xl bg-panel p-4 ring-1 ring-line">
-        <p className="flex items-center gap-2 text-sm font-bold text-snow">
-          <Globe size={15} className="text-brass" /> Búsqueda online (TMDB)
-        </p>
-        <p className="mt-1.5 text-xs leading-relaxed text-fog">
-          Con una API key gratuita de <span className="font-semibold text-snow">themoviedb.org</span> el
-          buscador encuentra cualquier título, con carátula y sinopsis en español. La clave se guarda
-          solo en tu dispositivo.
-        </p>
-        <div className="mt-3 flex gap-2">
-          <input
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            placeholder="Pega aquí tu API key…"
-            className="min-w-0 flex-1 rounded-xl bg-panel2 px-3 py-2.5 text-xs text-snow ring-1 ring-line outline-none placeholder:text-fog/50 focus:ring-brass/50"
-          />
+      {tmdbKey && !editKey ? (
+        <div className="mt-6 flex items-center justify-between gap-3 rounded-3xl bg-panel p-4 ring-1 ring-line">
+          <p className="flex min-w-0 items-center gap-2 text-sm font-bold text-snow">
+            <Globe size={15} className="shrink-0 text-brass" /> Búsqueda online
+            <span className="truncate text-xs font-semibold text-mint">✓ TMDB conectado</span>
+          </p>
           <button
-            onClick={() => onSaveKey(draft.trim())}
-            className="flex shrink-0 items-center gap-1.5 rounded-xl bg-brass px-3.5 text-xs font-bold text-ink transition-transform active:scale-95"
+            onClick={() => { setDraft(tmdbKey); setEditKey(true); }}
+            className="shrink-0 rounded-full bg-panel2 px-3.5 py-2 text-xs font-bold text-fog ring-1 ring-line transition-transform active:scale-95"
           >
-            <KeyRound size={13} /> Guardar
+            Editar
           </button>
         </div>
-        {tmdbKey && <p className="mt-2 text-xs font-semibold text-mint">✓ Conectado a TMDB</p>}
-      </div>
+      ) : (
+        <div className="mt-6 rounded-3xl bg-panel p-4 ring-1 ring-line">
+          <p className="flex items-center gap-2 text-sm font-bold text-snow">
+            <Globe size={15} className="text-brass" /> Búsqueda online (TMDB)
+          </p>
+          <p className="mt-1.5 text-xs leading-relaxed text-fog">
+            Con una API key gratuita de <span className="font-semibold text-snow">themoviedb.org</span> el
+            buscador encuentra cualquier título, con carátula y sinopsis en español. La clave se guarda
+            solo en tu dispositivo.
+          </p>
+          <div className="mt-3 flex gap-2">
+            <input
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              placeholder="Pega aquí tu API key…"
+              className="min-w-0 flex-1 rounded-xl bg-panel2 px-3 py-2.5 text-xs text-snow ring-1 ring-line outline-none placeholder:text-fog/50 focus:ring-brass/50"
+            />
+            <button
+              onClick={() => { const k = draft.trim(); onSaveKey(k); setEditKey(!k); }}
+              className="flex shrink-0 items-center gap-1.5 rounded-xl bg-brass px-3.5 text-xs font-bold text-ink transition-transform active:scale-95"
+            >
+              <KeyRound size={13} /> Guardar
+            </button>
+          </div>
+          {tmdbKey && (
+            <button
+              onClick={() => { setDraft(""); onSaveKey(""); }}
+              className="mt-2.5 text-xs font-semibold text-fog/70 transition-colors hover:text-red-400"
+            >
+              Desconectar TMDB
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="mt-3 rounded-3xl bg-panel p-4 ring-1 ring-line">
         <p className="flex items-center gap-2 text-sm font-bold text-snow">

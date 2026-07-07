@@ -1,0 +1,9 @@
+{
+  "appId": "com.davedvd.butaca",
+  "appName": "Butaca",
+  "webDir": "www",
+  "backgroundColor": "#0b0e16",
+  "android": {
+    "allowMixedContent": false
+  }
+}

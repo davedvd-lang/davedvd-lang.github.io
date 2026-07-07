@@ -5,9 +5,13 @@
   "description": "Butaca — diario personal de series y películas (prototipo React + Tailwind + Lucide, 100% local)",
   "type": "module",
   "scripts": {
-    "build": "node build.mjs"
+    "build": "node build.mjs",
+    "android": "node build.mjs && npx cap sync android"
   },
   "dependencies": {
+    "@capacitor/android": "^8.4.1",
+    "@capacitor/cli": "^8.4.1",
+    "@capacitor/core": "^8.4.1",
     "lucide-react": "^0.550.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"

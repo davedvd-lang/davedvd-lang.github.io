@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Butaca</string>
+    <string name="title_activity_main">Butaca</string>
+    <string name="package_name">com.davedvd.butaca</string>
+    <string name="custom_url_scheme">com.davedvd.butaca</string>
+</resources>

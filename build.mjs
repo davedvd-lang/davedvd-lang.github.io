@@ -55,4 +55,8 @@ for (const f of ["manifest.webmanifest", "sw.js", "icon-192.png", "icon-512.png"
   copyFileSync(`pwa/${f}`, `dist/${f}`);
 }
 
-console.log("OK → index.html + activos PWA (y dist/ para previsualización)");
+// Copia para la app Android (Capacitor): www/ es su webDir
+mkdirSync("www", { recursive: true });
+writeFileSync("www/index.html", readFileSync("dist/index.html"));
+
+console.log("OK → index.html, www/ y activos PWA (dist/ para previsualización)");

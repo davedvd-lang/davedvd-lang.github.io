@@ -89,6 +89,7 @@ export async function searchTmdb(query, apiKey) {
       year: parseInt((r.first_air_date || r.release_date || "").slice(0, 4)) || "",
       genre: r.media_type === "tv" ? "Serie · TMDB" : "Película · TMDB",
       synopsis: r.overview || "",
+      released: r.first_air_date || r.release_date || undefined,
       img: r.poster_path ? `https://image.tmdb.org/t/p/w342${r.poster_path}` : undefined,
       poster: { from: "#3b4863", to: "#0b0e16", emoji: r.media_type === "tv" ? "📺" : "🎬" },
     }));
