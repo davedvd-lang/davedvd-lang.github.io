@@ -24,3 +24,4 @@ ajusta `executablePath` al principio de cada script si tu Chromium no está en
 | smoke8.mjs | tarjeta v2, «Ni con un palo», deck Descubrir (botones y arrastre real) |
 | smoke9.mjs | regresión: descartar una serie del trending ya no congela la app |
 | smoke10.mjs | deck: toque = ficha, nota ★ TMDB, atribución, drag sobre carátula |
+| smoke11.mjs | deck: mezcla de épocas (trending + clásicos) y cierre diario (30/día) |
