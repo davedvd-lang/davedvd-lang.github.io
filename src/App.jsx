@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { seedLibrary, catalog } from "./data.js";
 import {
-  checkSeasonUpdates, enrichPosters, fetchTrending, hydrateTmdbItem, loadPosterCache,
+  checkSeasonUpdates, enrichPosters, fetchClassics, fetchTrending, hydrateTmdbItem, loadPosterCache,
   loadTmdbKey, posterKey, saveTmdbKey, searchTmdb,
 } from "./enrich.js";
 import { shareCard } from "./share.js";
@@ -849,13 +849,38 @@ function AddSheet({ lib, tmdbKey, onClose, onAdd, onPreview }) {
 
 /* ---------- Descubrir: desliza y decide (el «tinder» de pelis) ---------- */
 
+/* Cierre diario de la sala: tope de decisiones al día para que Descubrir sea un
+   ratito de cine y no un pozo de scroll infinito (y el catálogo dure). */
+const DECK_DAILY_LIMIT = 30;
+const DECK_QUOTA_KEY = "butaca:deckquota:v1";
+
+function loadDeckUsed() {
+  try {
+    const q = JSON.parse(localStorage.getItem(DECK_QUOTA_KEY));
+    return q && q.day === dayStr() ? q.count : 0;
+  } catch { return 0; }
+}
+function saveDeckUsed(count) {
+  try { localStorage.setItem(DECK_QUOTA_KEY, JSON.stringify({ day: dayStr(), count })); } catch { /* sin hueco */ }
+}
+
+/* una del trending, una de otra década, una del trending… variedad temporal */
+const interleave = (a, b) => {
+  const out = [];
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    if (a[i]) out.push(a[i]);
+    if (b[i]) out.push(b[i]);
+  }
+  return out;
+};
+
 const SWIPE = {
   left: { status: "skipped", label: "NI CON UN PALO", emoji: "🥢", color: "#97a3bd" },
   up: { status: "watchlist", label: "POR VER", emoji: "➕", color: "#f4b43e" },
   right: { status: "watched", label: "VISTA", emoji: "✓", color: "#4ade80" },
 };
 
-function DiscoverDeck({ cards, canLoadMore, onDecide, onInfo, onLoadMore, onClose }) {
+function DiscoverDeck({ cards, left, canLoadMore, onDecide, onInfo, onLoadMore, onClose }) {
   const [drag, setDrag] = useState(null);   // {dx, dy} mientras arrastras
   const [fly, setFly] = useState(null);     // dirección de salida animada
   const startRef = useRef(null);            // {x, y, moved} — moved distingue arrastre de toque
@@ -898,7 +923,10 @@ function DiscoverDeck({ cards, canLoadMore, onDecide, onInfo, onLoadMore, onClos
         <div>
           <h2 className="text-xl font-extrabold tracking-tight text-snow">Descubrir</h2>
           <p className="text-xs text-fog">desliza: 🥢 ni con un palo · ⬆ por ver · ✓ vista</p>
-          <p className="text-xs text-fog/70">toca la carta para ver su ficha completa</p>
+          <p className="text-xs text-fog/70">
+            toca la carta para ver su ficha completa
+            {left > 0 && left <= 10 && <span className="font-semibold text-brass2"> · {left === 1 ? "queda 1 hoy" : `quedan ${left} hoy`}</span>}
+          </p>
         </div>
         <button onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-full bg-white/5 text-snow transition-transform active:scale-90" aria-label="Cerrar Descubrir">
           <X size={18} />
@@ -906,7 +934,16 @@ function DiscoverDeck({ cards, canLoadMore, onDecide, onInfo, onLoadMore, onClos
       </div>
 
       <div className="relative min-h-0 flex-1 px-6 py-3">
-        {cards.length === 0 ? (
+        {left <= 0 ? (
+          <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
+            <p className="text-4xl">🌙</p>
+            <p className="text-base font-extrabold tracking-tight text-snow">La sala cierra por hoy</p>
+            <p className="max-w-64 text-sm leading-relaxed text-fog">
+              Ya has decidido sobre {DECK_DAILY_LIMIT} títulos hoy. Mañana se renueva la
+              cartelera — y así te da tiempo a ver alguna 😉
+            </p>
+          </div>
+        ) : cards.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
             <p className="text-4xl">🍿</p>
             <p className="max-w-60 text-sm text-fog">No quedan candidatos por ahora.</p>
@@ -974,7 +1011,7 @@ function DiscoverDeck({ cards, canLoadMore, onDecide, onInfo, onLoadMore, onClos
         )}
       </div>
 
-      {current && (
+      {current && left > 0 && (
         <div className="flex items-center justify-center gap-5 px-5 pb-[max(env(safe-area-inset-bottom),20px)] pt-2">
           <button onClick={() => decideByButton("left")} aria-label="Ni con un palo"
             className="flex h-14 w-14 items-center justify-center rounded-full bg-panel text-2xl ring-1 ring-line transition-transform active:scale-90">
@@ -1226,6 +1263,7 @@ export default function App() {
   const [activity, setActivity] = useState(loadActivity);
   const [updates, setUpdates] = useState({}); // series con episodios nuevos en TMDB
   const [deck, setDeck] = useState(null); // Descubrir: { cards, page } o null
+  const [deckUsed, setDeckUsed] = useState(loadDeckUsed); // decisiones de hoy (cierre diario)
   const deckLoading = useRef(false);
   const toastTimer = useRef(null);
 
@@ -1397,7 +1435,8 @@ export default function App() {
       logActivity(1);
     }
     setLib((L) => [item, ...L]);
-    // si venía del deck de Descubrir, su carta ya está decidida: fuera
+    // si venía del deck de Descubrir, su carta ya está decidida: fuera (y gasta turno)
+    if (deck && deck.cards.some((c) => c.type === item.type && c.title === item.title)) spendDeckTurn();
     decided.current.add(`${item.type}:${item.title}`);
     setDeck((d) => d && { ...d, cards: d.cards.filter((c) => !(c.type === item.type && c.title === item.title)) });
     setPreview(null);
@@ -1464,14 +1503,22 @@ export default function App() {
     return cards.filter((c) => !have.has(`${c.type}:${c.title}`) && !decided.current.has(`${c.type}:${c.title}`));
   };
 
+  /* una del trending, una de otra década: si los clásicos fallan, trending a secas */
+  const fetchDeckPage = async (page) => {
+    const [trending, classics] = await Promise.all([
+      fetchTrending(tmdbKey, page),
+      fetchClassics(tmdbKey, Math.ceil(page / 2)).catch(() => []),
+    ]);
+    return interleave(trending, classics);
+  };
+
   const openDiscover = async () => {
     decided.current = new Set(); // lo decidido ya está en la videoteca a estas alturas
     setDeck({ cards: notOwned(catalog), page: 0 });
     if (tmdbKey && !deckLoading.current) {
       deckLoading.current = true;
       try {
-        const trending = await fetchTrending(tmdbKey, 1);
-        setDeck({ cards: notOwned(trending), page: 1 });
+        setDeck({ cards: notOwned(await fetchDeckPage(1)), page: 1 });
       } catch { /* nos quedamos con el catálogo local */ }
       deckLoading.current = false;
     }
@@ -1481,18 +1528,29 @@ export default function App() {
     if (!tmdbKey || !deck || deckLoading.current) return;
     deckLoading.current = true;
     try {
-      const trending = await fetchTrending(tmdbKey, deck.page + 1);
+      const batch = await fetchDeckPage(deck.page + 1);
       setDeck((d) => {
         if (!d) return d;
         // el orden del trending baila entre páginas: sin esto salen cartas repetidas
         const seen = new Set(d.cards.map((c) => `${c.type}:${c.title}`));
-        return { cards: [...d.cards, ...notOwned(trending).filter((c) => !seen.has(`${c.type}:${c.title}`))], page: d.page + 1 };
+        return { cards: [...d.cards, ...notOwned(batch).filter((c) => !seen.has(`${c.type}:${c.title}`))], page: d.page + 1 };
       });
     } catch { say("Sin conexión con TMDB"); }
     deckLoading.current = false;
   };
 
+  /* gasta un turno del cierre diario */
+  const spendDeckTurn = () => {
+    setDeckUsed((n) => {
+      const next = n + 1;
+      saveDeckUsed(next);
+      return next;
+    });
+  };
+
   const deckDecide = (card, dir) => {
+    if (deckUsed >= DECK_DAILY_LIMIT) return; // la sala ya cerró hoy
+    spendDeckTurn();
     decided.current.add(`${card.type}:${card.title}`);
     // siempre por addFromCatalog: hidrata TMDB (temporadas/duración) y normaliza
     // el título antes de guardarlo — una serie sin `seasons` rompería el render
@@ -1590,7 +1648,7 @@ export default function App() {
           onAdd={addFromCatalog} onPreview={openFromSearch} />
       )}
       {deck && (
-        <DiscoverDeck cards={deck.cards} canLoadMore={!!tmdbKey}
+        <DiscoverDeck cards={deck.cards} left={DECK_DAILY_LIMIT - deckUsed} canLoadMore={!!tmdbKey}
           onDecide={deckDecide} onInfo={openFromSearch} onLoadMore={deckMore} onClose={() => setDeck(null)} />
       )}
       {detail && (
