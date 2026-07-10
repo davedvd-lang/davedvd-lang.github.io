@@ -30,12 +30,13 @@ const STATUSES_FOR = {
 };
 
 function seriesProgress(item) {
-  const total = item.seasons.reduce((n, s) => n + s.eps, 0);
-  const seen = item.seasons.reduce((n, s) => n + s.watched, 0);
+  const seasons = item.seasons || []; // datos antiguos o incompletos: no reventar el render
+  const total = seasons.reduce((n, s) => n + s.eps, 0);
+  const seen = seasons.reduce((n, s) => n + s.watched, 0);
   let next = null;
-  for (let i = 0; i < item.seasons.length; i++) {
-    if (item.seasons[i].watched < item.seasons[i].eps) {
-      next = { season: i + 1, ep: item.seasons[i].watched + 1 };
+  for (let i = 0; i < seasons.length; i++) {
+    if (seasons[i].watched < seasons[i].eps) {
+      next = { season: i + 1, ep: seasons[i].watched + 1 };
       break;
     }
   }
@@ -48,7 +49,7 @@ const epLabel = (n) => (n ? `T${n.season}·E${n.ep}` : "");
 function lastSeenLabel(item) {
   if (item.type !== "series") return null;
   let last = null;
-  item.seasons.forEach((s, i) => { if (s.watched > 0) last = `T${i + 1}·E${s.watched}`; });
+  (item.seasons || []).forEach((s, i) => { if (s.watched > 0) last = `T${i + 1}·E${s.watched}`; });
   return last;
 }
 
@@ -918,7 +919,7 @@ function DiscoverDeck({ cards, canLoadMore, onDecide, onLoadMore, onClose }) {
               : { transform: `scale(${1 - i * 0.05}) translateY(${i * 14}px)`, transition: "transform .25s ease-out" };
             return (
               <div
-                key={c.tmdbId || c.title}
+                key={`${c.type}:${c.tmdbId || c.title}`}
                 className="absolute inset-x-6 top-3 bottom-3 touch-none select-none overflow-hidden rounded-[28px] bg-panel ring-1 ring-line"
                 style={{ ...style, zIndex: 10 - i }}
                 onPointerDown={top ? (e) => { startRef.current = { x: e.clientX, y: e.clientY }; e.currentTarget.setPointerCapture(e.pointerId); } : undefined}
@@ -1324,8 +1325,9 @@ export default function App() {
       // resultado online: traer temporadas/duración reales antes de guardar
       try { item = await hydrateTmdbItem(c, tmdbKey); }
       catch { /* si falla, se añade igualmente con lo que hay */ }
-      if (item.type === "series" && !item.seasons) item.seasons = [{ eps: 8, watched: 0 }];
     }
+    // una serie sin temporadas (trending, o hidratación fallida) rompería el progreso
+    if (item.type === "series" && !item.seasons) item = { ...item, seasons: [{ eps: 8, watched: 0 }] };
     let entry = { ...item, id: ++nextId, status, addedAt: Date.now(), poster: { ...item.poster } };
     if (status === "watched") {
       entry = {
@@ -1336,7 +1338,7 @@ export default function App() {
       logActivity(1);
     }
     setLib((L) => [entry, ...L]);
-    say(`＋ «${entry.title}» en «${STATUS[status].single}»`);
+    say(status === "skipped" ? `🥢 «${entry.title}»: ni con un palo` : `＋ «${entry.title}» en «${STATUS[status].single}»`);
   };
 
   /* abrir un resultado de búsqueda: ficha real si ya está, preview si no */
@@ -1443,25 +1445,22 @@ export default function App() {
     deckLoading.current = true;
     try {
       const trending = await fetchTrending(tmdbKey, deck.page + 1);
-      setDeck((d) => d && { cards: [...d.cards, ...notOwned(trending)], page: d.page + 1 });
+      setDeck((d) => {
+        if (!d) return d;
+        // el orden del trending baila entre páginas: sin esto salen cartas repetidas
+        const seen = new Set(d.cards.map((c) => `${c.type}:${c.title}`));
+        return { cards: [...d.cards, ...notOwned(trending).filter((c) => !seen.has(`${c.type}:${c.title}`))], page: d.page + 1 };
+      });
     } catch { say("Sin conexión con TMDB"); }
     deckLoading.current = false;
   };
 
   const deckDecide = (card, dir) => {
-    const { status } = SWIPE[dir];
-    if (status === "skipped") {
-      setLib((L) => [{ ...card, id: ++nextId, status, addedAt: Date.now(), poster: { ...card.poster } }, ...L]);
-      say(`🥢 «${card.title}»: ni con un palo`);
-    } else {
-      addFromCatalog(card, status); // hidrata TMDB (temporadas/duración) y fecha si es «vista»
-    }
-    setDeck((d) => {
-      if (!d) return d;
-      const cards = d.cards.filter((c) => c !== card);
-      if (cards.length <= 2 && tmdbKey) deckMore();
-      return { ...d, cards };
-    });
+    // siempre por addFromCatalog: hidrata TMDB (temporadas/duración) y normaliza
+    // el título antes de guardarlo — una serie sin `seasons` rompería el render
+    addFromCatalog(card, SWIPE[dir].status);
+    setDeck((d) => d && { ...d, cards: d.cards.filter((c) => c !== card) });
+    if (deck && deck.cards.length <= 3 && tmdbKey) deckMore();
   };
 
   const saveKey = (key) => {

@@ -1,6 +1,6 @@
 # SUMMARY — Estado del proyecto Butaca
 
-> Documento de traspaso entre sesiones. Última actualización: 2026-07-09.
+> Documento de traspaso entre sesiones. Última actualización: 2026-07-10.
 > Para retomar el trabajo con Claude Code: abre una sesión sobre este repo
 > (`davedvd-lang/davedvd-lang.github.io`) y lee este archivo + `DESIGN.md` + `ANDROID.md`.
 
@@ -16,6 +16,13 @@ Sin cuentas ni servidores: todo en `localStorage`, con APIs públicas opcionales
   `claude/media-tracker-app-design-9m1p6o` con una copia antigua de Butaca, borrable.
 
 ## Estado actual: TODO FUNCIONA y está desplegado
+
+> 2026-07-10 — corregido el cuelgue de Descubrir reportado por el usuario: descartar
+> con ⬅ una **serie** del trending la guardaba sin `seasons` y el render del dashboard
+> reventaba (app congelada). Ahora todas las decisiones del deck pasan por
+> `addFromCatalog` (hidrata temporadas), los helpers toleran series sin `seasons`, y
+> `main.jsx` tiene un ErrorBoundary con «Reintentar» como red de seguridad.
+> Regresión cubierta en `tests/smoke9.mjs`.
 
 Verificado con tests de humo de navegador (`tests/smoke*.mjs`, todos en verde, APIs simuladas):
 
