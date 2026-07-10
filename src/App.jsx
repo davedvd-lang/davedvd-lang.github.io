@@ -136,8 +136,9 @@ function Poster({ item, className = "", emojiClass = "text-4xl" }) {
           src={src}
           alt=""
           loading="lazy"
+          draggable={false}
           onError={() => setBroken(true)}
-          className="absolute inset-0 h-full w-full object-cover"
+          className="pointer-events-none absolute inset-0 h-full w-full object-cover"
         />
       )}
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_80%_at_50%_-10%,rgba(255,255,255,.14),transparent_55%)]" />
@@ -527,6 +528,7 @@ function DetailSheet({ item, preview = false, update, onApplyUpdate, onNote, onS
           <p className="flex items-center gap-1.5 text-sm text-fog">
             {isSeries ? <Tv size={14} /> : <Film size={14} />}
             {item.year} · {item.genre}{item.runtime ? ` · ${item.runtime} min` : ""}
+            {item.tmdbRating ? <span className="font-semibold text-brass2"> · ★ {item.tmdbRating} en TMDB</span> : ""}
           </p>
 
           {item.synopsis && (
@@ -787,7 +789,7 @@ function AddSheet({ lib, tmdbKey, onClose, onAdd, onPreview }) {
             const owned = inLib(c);
             const added = !!owned;
             return (
-              <div key={c.tmdbId || c.title} className="rounded-2xl bg-panel2 p-2.5 ring-1 ring-line">
+              <div key={`${c.type}:${c.tmdbId || c.title}`} className="rounded-2xl bg-panel2 p-2.5 ring-1 ring-line">
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => onPreview(c)}
@@ -799,6 +801,7 @@ function AddSheet({ lib, tmdbKey, onClose, onAdd, onPreview }) {
                       <p className="truncate text-sm font-bold text-snow">{c.title}</p>
                       <p className="truncate text-xs text-fog">
                         {c.type === "movie" ? "Película" : "Serie"}{c.year ? ` · ${c.year}` : ""}
+                        {c.tmdbRating ? <span className="font-semibold text-brass2"> · ★ {c.tmdbRating}</span> : ""}
                       </p>
                       {c.synopsis && (
                         <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-fog/80">{c.synopsis}</p>
@@ -852,22 +855,27 @@ const SWIPE = {
   right: { status: "watched", label: "VISTA", emoji: "✓", color: "#4ade80" },
 };
 
-function DiscoverDeck({ cards, canLoadMore, onDecide, onLoadMore, onClose }) {
+function DiscoverDeck({ cards, canLoadMore, onDecide, onInfo, onLoadMore, onClose }) {
   const [drag, setDrag] = useState(null);   // {dx, dy} mientras arrastras
   const [fly, setFly] = useState(null);     // dirección de salida animada
-  const startRef = useRef(null);
+  const startRef = useRef(null);            // {x, y, moved} — moved distingue arrastre de toque
+  const dragRef = useRef(null);             // último {dx, dy} real: los pointermove se renderizan
+                                            // con retardo y un flick rápido llegaría "corto" al soltar
 
   const current = cards[0];
-  const dir = drag
-    ? drag.dy < -70 && Math.abs(drag.dy) > Math.abs(drag.dx) ? "up"
-      : drag.dx > 70 ? "right" : drag.dx < -70 ? "left" : null
+  const dirOf = (d) => d
+    ? d.dy < -70 && Math.abs(d.dy) > Math.abs(d.dx) ? "up"
+      : d.dx > 70 ? "right" : d.dx < -70 ? "left" : null
     : null;
+  const dir = dirOf(drag);
 
   const release = () => {
     if (fly) return;
-    if (dir) {
-      setFly(dir);
-      setTimeout(() => { onDecide(current, dir); setFly(null); setDrag(null); }, 260);
+    const d = dirOf(dragRef.current);
+    dragRef.current = null;
+    if (d) {
+      setFly(d);
+      setTimeout(() => { onDecide(current, d); setFly(null); setDrag(null); }, 260);
     } else {
       setDrag(null);
     }
@@ -890,6 +898,7 @@ function DiscoverDeck({ cards, canLoadMore, onDecide, onLoadMore, onClose }) {
         <div>
           <h2 className="text-xl font-extrabold tracking-tight text-snow">Descubrir</h2>
           <p className="text-xs text-fog">desliza: 🥢 ni con un palo · ⬆ por ver · ✓ vista</p>
+          <p className="text-xs text-fog/70">toca la carta para ver su ficha completa</p>
         </div>
         <button onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-full bg-white/5 text-snow transition-transform active:scale-90" aria-label="Cerrar Descubrir">
           <X size={18} />
@@ -922,12 +931,28 @@ function DiscoverDeck({ cards, canLoadMore, onDecide, onLoadMore, onClose }) {
                 key={`${c.type}:${c.tmdbId || c.title}`}
                 className="absolute inset-x-6 top-3 bottom-3 touch-none select-none overflow-hidden rounded-[28px] bg-panel ring-1 ring-line"
                 style={{ ...style, zIndex: 10 - i }}
-                onPointerDown={top ? (e) => { startRef.current = { x: e.clientX, y: e.clientY }; e.currentTarget.setPointerCapture(e.pointerId); } : undefined}
-                onPointerMove={top ? (e) => { if (startRef.current) setDrag({ dx: e.clientX - startRef.current.x, dy: e.clientY - startRef.current.y }); } : undefined}
-                onPointerUp={top ? () => { startRef.current = null; release(); } : undefined}
-                onPointerCancel={top ? () => { startRef.current = null; setDrag(null); } : undefined}
+                onPointerDown={top ? (e) => { startRef.current = { x: e.clientX, y: e.clientY, moved: false }; e.currentTarget.setPointerCapture(e.pointerId); } : undefined}
+                onPointerMove={top ? (e) => {
+                  const s = startRef.current;
+                  if (!s) return;
+                  const dx = e.clientX - s.x, dy = e.clientY - s.y;
+                  if (Math.abs(dx) > 8 || Math.abs(dy) > 8) s.moved = true;
+                  dragRef.current = { dx, dy };
+                  setDrag({ dx, dy });
+                } : undefined}
+                onPointerUp={top ? () => {
+                  const tap = startRef.current && !startRef.current.moved;
+                  startRef.current = null;
+                  if (tap && !fly) { setDrag(null); onInfo(c); } else release();
+                } : undefined}
+                onPointerCancel={top ? () => { startRef.current = null; dragRef.current = null; setDrag(null); } : undefined}
               >
                 <Poster item={c} className="h-3/5 w-full" emojiClass="text-7xl" />
+                {c.tmdbRating && (
+                  <span className="absolute right-3 top-3 flex items-center gap-1 rounded-full bg-black/60 px-2.5 py-1 text-xs font-bold text-brass2 backdrop-blur">
+                    <Star size={11} className="fill-brass2" /> {c.tmdbRating}
+                  </span>
+                )}
                 <div className="flex h-2/5 flex-col gap-1.5 p-4">
                   <p className="text-xl font-extrabold tracking-tight text-snow">{c.title}</p>
                   <p className="text-xs text-fog">
@@ -1114,6 +1139,11 @@ function StatsView({ lib, activity, tmdbKey, onSaveKey, onReset, onExport, onImp
           )}
         </div>
       )}
+
+      {/* atribución obligatoria según las condiciones de uso de la API de TMDB */}
+      <p className="mt-2 px-1 text-[10px] leading-relaxed text-fog/60">
+        This product uses the TMDB API but is not endorsed or certified by TMDB.
+      </p>
 
       <div className="mt-3 rounded-3xl bg-panel p-4 ring-1 ring-line">
         <p className="flex items-center gap-2 text-sm font-bold text-snow">
@@ -1367,6 +1397,9 @@ export default function App() {
       logActivity(1);
     }
     setLib((L) => [item, ...L]);
+    // si venía del deck de Descubrir, su carta ya está decidida: fuera
+    decided.current.add(`${item.type}:${item.title}`);
+    setDeck((d) => d && { ...d, cards: d.cards.filter((c) => !(c.type === item.type && c.title === item.title)) });
     setPreview(null);
     setDetailId(item.id);
     const where = lastSeenLabel(item);
@@ -1422,13 +1455,17 @@ export default function App() {
     say(`🎉 «${item.title}» actualizada con los episodios nuevos`);
   };
 
-  /* Descubrir: candidatos que no están ya en tu videoteca */
+  /* Descubrir: candidatos que no están ya en tu videoteca. `decided` cubre las
+     decisiones aún guardándose (la hidratación TMDB es asíncrona): sin ello, la
+     recarga de trending podría volver a colar una carta recién descartada. */
+  const decided = useRef(new Set());
   const notOwned = (cards) => {
     const have = new Set(lib.map((i) => `${i.type}:${i.title}`));
-    return cards.filter((c) => !have.has(`${c.type}:${c.title}`));
+    return cards.filter((c) => !have.has(`${c.type}:${c.title}`) && !decided.current.has(`${c.type}:${c.title}`));
   };
 
   const openDiscover = async () => {
+    decided.current = new Set(); // lo decidido ya está en la videoteca a estas alturas
     setDeck({ cards: notOwned(catalog), page: 0 });
     if (tmdbKey && !deckLoading.current) {
       deckLoading.current = true;
@@ -1456,6 +1493,7 @@ export default function App() {
   };
 
   const deckDecide = (card, dir) => {
+    decided.current.add(`${card.type}:${card.title}`);
     // siempre por addFromCatalog: hidrata TMDB (temporadas/duración) y normaliza
     // el título antes de guardarlo — una serie sin `seasons` rompería el render
     addFromCatalog(card, SWIPE[dir].status);
@@ -1553,7 +1591,7 @@ export default function App() {
       )}
       {deck && (
         <DiscoverDeck cards={deck.cards} canLoadMore={!!tmdbKey}
-          onDecide={deckDecide} onLoadMore={deckMore} onClose={() => setDeck(null)} />
+          onDecide={deckDecide} onInfo={openFromSearch} onLoadMore={deckMore} onClose={() => setDeck(null)} />
       )}
       {detail && (
         <DetailSheet
