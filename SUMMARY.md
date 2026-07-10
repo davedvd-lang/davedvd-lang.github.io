@@ -31,7 +31,7 @@ Verificado con tests de humo de navegador (`tests/smoke*.mjs`, todos en verde, A
 - **Dashboard «Hoy»**: saludo, chips (racha 🔥, en curso, pendientes, horas), carrusel «Sigues viendo», atajo de pausadas (con aviso de episodios nuevos), banner **Descubrir**, «Para esta noche» + ruleta **Sorpréndeme**, «Últimas vistas».
 - **Buscador [+]**: catálogo local sin clave; con API key de TMDB (pestaña Stats, bloque plegable) búsqueda online global es-ES. Tocar un resultado abre la **ficha en modo preview**: la primera acción (estado, episodio) la guarda con esa acción aplicada.
 - **Ficha**: sinopsis, chips de estado, rejilla de episodios, nota ★, revisionados (contador pelis / «volver a empezar» series con 🔁), **nota privada**, **compartir tarjeta** (canvas 1080×1350, póster vertical 2:3; Web Share en móvil, PNG en escritorio), aviso «episodios nuevos» con fusión de temporadas.
-- **Descubrir**: deck tipo Tinder (⬅ ni con un palo · ⬆ por ver · ➡ vista) con arrastre real + botones; trending semanal TMDB paginado o catálogo local.
+- **Descubrir**: deck tipo Tinder (⬅ ni con un palo · ⬆ por ver · ➡ vista) con arrastre real + botones; trending semanal TMDB paginado o catálogo local. **Toque en la carta = ficha completa en preview** (sinopsis, duración, géneros; decidir desde ella retira la carta). Nota media de TMDB (★) en carta, ficha y buscador.
 - **Bibliotecas**: chips de estado con contador, ordenación (Reciente/Estreno/Duración/A-Z), filtro por género (géneros reales de TMDB al añadir).
 - **Stats «Tu tiempo en pantalla»**: 10 celdas (horas, pelis, capítulos, series, revisionados, abandonadas, vistas del año, racha, nota media, récord/día) + podio top-3 + ajustes (TMDB plegable, exportar/importar JSON, restablecer).
 - **Infraestructura**: carátulas runtime (TVmaze/iTunes sin clave, TMDB con clave) cacheadas; PWA instalable + service worker offline; persistencia y diario de actividad en localStorage; proyecto **Capacitor** completo en `android/` con iconos/splash de marca.
@@ -60,8 +60,7 @@ también el proyecto Android) → `node tests/smoke8.mjs` → commit + push a `m
      `@capacitor/filesystem` + `@capacitor/share`, ya previsto en ANDROID.md);
    - la tarjeta de **Compartir** con Web Share nativo.
 2. **Antes de subir a Play Store** (pendientes de código, por hacer en la próxima sesión):
-   - añadir la **atribución TMDB** obligatoria en Stats («This product uses the TMDB API
-     but is not endorsed or certified by TMDB»);
+   - ~~atribución TMDB obligatoria en Stats~~ ✅ hecha (2026-07-10);
    - decidir el `applicationId` definitivo (ahora `com.davedvd.butaca` — inmutable tras publicar);
    - subir `versionCode/versionName` en `android/app/build.gradle` por versión.
 3. **Play Store**: keystore + AAB firmado + ficha (política de privacidad análoga a la de

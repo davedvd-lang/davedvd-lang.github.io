@@ -84,6 +84,7 @@ const mapTmdbResult = (r) => ({
   genre: r.media_type === "tv" ? "Serie · TMDB" : "Película · TMDB",
   synopsis: r.overview || "",
   released: r.first_air_date || r.release_date || undefined,
+  tmdbRating: r.vote_average ? Math.round(r.vote_average * 10) / 10 : undefined, // nota media de TMDB (0–10)
   img: r.poster_path ? `https://image.tmdb.org/t/p/w342${r.poster_path}` : undefined,
   poster: { from: "#3b4863", to: "#0b0e16", emoji: r.media_type === "tv" ? "📺" : "🎬" },
 });
