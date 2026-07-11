@@ -138,6 +138,26 @@ export async function hydrateTmdbItem(result, apiKey) {
   return { ...result, genre: genre || result.genre, runtime: j.runtime || undefined };
 }
 
+/* ---------- ¿dónde verla? (plataformas de streaming, datos de JustWatch vía TMDB) ---------- */
+
+const PROV_CACHE = "butaca:providers:v1";
+
+/** Plataformas de suscripción donde está el título en España (caché de 7 días). */
+export async function fetchProviders(item, apiKey) {
+  if (!apiKey || !item.tmdbId) return [];
+  let cache;
+  try { cache = JSON.parse(localStorage.getItem(PROV_CACHE)) || {}; } catch { cache = {}; }
+  const k = `${item.type}:${item.tmdbId}`;
+  const hit = cache[k];
+  if (hit && Date.now() - hit.ts < 7 * 864e5) return hit.names;
+  const kind = item.type === "series" ? "tv" : "movie";
+  const j = await getJSON(`https://api.themoviedb.org/3/${kind}/${item.tmdbId}/watch/providers?api_key=${apiKey}`);
+  const names = [...new Set((j.results?.ES?.flatrate || []).map((p) => p.provider_name))].slice(0, 4);
+  cache[k] = { ts: Date.now(), names };
+  try { localStorage.setItem(PROV_CACHE, JSON.stringify(cache)); } catch { /* sin hueco */ }
+  return names;
+}
+
 /* ---------- aviso de nueva temporada (series en pausa / en curso) ---------- */
 
 const TVCHECK = "butaca:tvcheck:v1";
