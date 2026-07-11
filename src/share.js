@@ -21,7 +21,8 @@ function loadImage(url) {
   });
 }
 
-export async function shareCard(item, posterUrls = []) {
+/** `progress`: texto tipo «▶ Voy por T2·E6» para series/pelis aún en curso. */
+export async function shareCard(item, posterUrls = [], progress = null) {
   const W = 1080, H = 1350;
   const c = document.createElement("canvas");
   c.width = W; c.height = H;
@@ -81,14 +82,19 @@ export async function shareCard(item, posterUrls = []) {
   shown.forEach((l, i) => ctx.fillText(l, W / 2, PY + PH + 110 + i * 84));
   let y = PY + PH + 110 + shown.length * 84;
 
-  // estrellas
-  if (item.rating) {
+  // estrellas (si la terminaste) o progreso (si vas por mitad)
+  if (item.rating && !progress) {
     ctx.font = "84px system-ui";
     let stars = "";
     for (let i = 1; i <= 5; i++) stars += i <= item.rating ? "★" : "☆";
     ctx.fillStyle = "#f4b43e";
     ctx.fillText(stars, W / 2, y + 30);
     y += 110;
+  } else if (progress) {
+    ctx.fillStyle = "#f4b43e";
+    ctx.font = font(56, 800);
+    ctx.fillText(progress, W / 2, y + 26);
+    y += 100;
   }
 
   // subtítulo
@@ -107,7 +113,7 @@ export async function shareCard(item, posterUrls = []) {
   const file = new File([blob], `butaca-${slug}.png`, { type: "image/png" });
 
   if (navigator.canShare?.({ files: [file] })) {
-    await navigator.share({ files: [file], title: `He visto ${item.title}` });
+    await navigator.share({ files: [file], title: `${progress ? "Estoy viendo" : "He visto"} ${item.title}` });
     return "shared";
   }
   const a = document.createElement("a");

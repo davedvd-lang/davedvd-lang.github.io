@@ -1,5 +1,5 @@
 // Descubrir v3: mezcla de épocas (trending intercalado con joyas de otras
-// décadas vía discover) y cierre diario de la sala (tope de decisiones/día).
+// décadas vía discover) y cierre de la sala (30 decisiones por tanda de 12 h).
 import { chromium } from "playwright-core";
 
 const PNG_POSTER = Buffer.from(
@@ -26,13 +26,11 @@ await ctx.route("**/api.themoviedb.org/3/movie/**", (r) => r.fulfill({ json: { r
 await ctx.route("**/image.tmdb.org/**", (r) => r.fulfill({ contentType: "image/png", body: PNG_POSTER }));
 await ctx.route(/(tvmaze|itunes\.apple)/, (r) => r.abort());
 
-// hoy ya se han gastado 27 decisiones de 30: quedan 3 para probar el cierre
+// tanda en curso con 27 decisiones de 30 gastadas: quedan 3 para probar el cierre
 // (solo en el primer arranque — el init script corre también al recargar)
 const seedQuota = () => {
   if (localStorage.getItem("butaca:deckquota:v1")) return;
-  const d = new Date();
-  const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  localStorage.setItem("butaca:deckquota:v1", JSON.stringify({ day, count: 27 }));
+  localStorage.setItem("butaca:deckquota:v1", JSON.stringify({ start: Date.now(), count: 27 }));
 };
 await ctx.addInitScript(seedQuota);
 
@@ -53,7 +51,7 @@ await page.getByText("🔥 Descubrir").click();
 await page.waitForTimeout(900);
 
 // 1. aviso de turnos restantes y mezcla de épocas: actual → clásica → actual
-ok("aviso «quedan 3 hoy»", (await page.getByText("quedan 3 hoy").count()) > 0);
+ok("aviso «quedan 3»", (await page.getByText("quedan 3").count()) > 0);
 ok("1ª carta: estreno del trending (Nova Prime)", (await topTitle()) === "Nova Prime");
 await page.getByRole("button", { name: "Añadir a Por ver" }).click();
 await page.waitForTimeout(700);
@@ -63,12 +61,13 @@ await page.screenshot({ path: "shot11-clasico.png" });
 await page.getByRole("button", { name: "Marcar como vista" }).click();
 await page.waitForTimeout(700);
 ok("3ª carta: de nuevo del trending (Eco Azul)", (await topTitle()) === "Eco Azul");
-ok("aviso «queda 1 hoy»", (await page.getByText("queda 1 hoy").count()) > 0);
+ok("aviso «queda 1»", (await page.getByText("queda 1", { exact: false }).count()) > 0);
 
-// 2. última decisión del día ⇒ la sala cierra
+// 2. última decisión de la tanda ⇒ la sala cierra 12 h
 await page.getByRole("button", { name: "Ni con un palo" }).click();
 await page.waitForTimeout(700);
-ok("pantalla «La sala cierra por hoy»", (await page.getByText("La sala cierra por hoy").count()) > 0);
+ok("pantalla «La sala cierra un rato»", (await page.getByText("La sala cierra un rato").count()) > 0);
+ok("con la hora de reapertura (~12 h)", (await page.getByText(/Reabre en ~\d+ h/).count()) > 0);
 ok("botones de decisión ocultos", (await page.getByRole("button", { name: "Marcar como vista" }).count()) === 0);
 ok("las cartas restantes no se muestran", (await page.getByRole("dialog").getByText("Tiburón").count()) === 0);
 await page.screenshot({ path: "shot11-cierre.png" });
@@ -78,13 +77,13 @@ await page.getByRole("button", { name: "Cerrar Descubrir" }).click();
 await page.waitForTimeout(300);
 await page.getByText("🔥 Descubrir").click();
 await page.waitForTimeout(900);
-ok("sigue cerrada al reabrir el deck", (await page.getByText("La sala cierra por hoy").count()) > 0);
+ok("sigue cerrada al reabrir el deck", (await page.getByText("La sala cierra un rato").count()) > 0);
 await page.getByRole("button", { name: "Cerrar Descubrir" }).click();
 await page.reload();
 await page.waitForTimeout(700);
 await page.getByText("🔥 Descubrir").click();
 await page.waitForTimeout(900);
-ok("sigue cerrada tras recargar la app", (await page.getByText("La sala cierra por hoy").count()) > 0);
+ok("sigue cerrada tras recargar la app", (await page.getByText("La sala cierra un rato").count()) > 0);
 
 // 4. lo decidido antes del cierre quedó bien guardado
 await page.getByRole("button", { name: "Cerrar Descubrir" }).click();

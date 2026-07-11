@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { seedLibrary, catalog } from "./data.js";
 import {
-  checkSeasonUpdates, enrichPosters, fetchClassics, fetchTrending, hydrateTmdbItem, loadPosterCache,
+  checkSeasonUpdates, enrichPosters, fetchClassics, fetchProviders, fetchTrending, hydrateTmdbItem, loadPosterCache,
   loadTmdbKey, posterKey, saveTmdbKey, searchTmdb,
 } from "./enrich.js";
 import { shareCard } from "./share.js";
@@ -500,7 +500,7 @@ function LibraryView({ lib, type, tab, updates, onTab, onOpen, onAdvance, onResu
 
 /* ---------- ficha (bottom sheet) ---------- */
 
-function DetailSheet({ item, preview = false, update, onApplyUpdate, onNote, onShare, onClose, onSetStatus, onSetEpisode, onAdvance, onRate, onRewatch, onRemove }) {
+function DetailSheet({ item, preview = false, providers, update, onApplyUpdate, onNote, onShare, onClose, onSetStatus, onSetEpisode, onAdvance, onRate, onRewatch, onRemove }) {
   const isSeries = item.type === "series";
   const prog = isSeries ? seriesProgress(item) : null;
   const left = lastSeenLabel(item);
@@ -533,6 +533,16 @@ function DetailSheet({ item, preview = false, update, onApplyUpdate, onNote, onS
 
           {item.synopsis && (
             <p className="text-sm leading-relaxed text-fog">{item.synopsis}</p>
+          )}
+
+          {providers?.length > 0 && (
+            <p className="flex flex-wrap items-center gap-1.5 text-xs text-fog">
+              <Clapperboard size={13} className="shrink-0 text-brass" /> En streaming:
+              {providers.map((n) => (
+                <span key={n} className="rounded-full bg-panel2 px-2.5 py-1 font-semibold text-snow ring-1 ring-line">{n}</span>
+              ))}
+              <span className="text-fog/50">· datos de JustWatch</span>
+            </p>
           )}
 
           {preview && (
@@ -627,7 +637,7 @@ function DetailSheet({ item, preview = false, update, onApplyUpdate, onNote, onS
             </p>
           )}
 
-          {item.status === "watched" && !preview && (
+          {["watched", "watching", "paused"].includes(item.status) && !preview && (
             <button
               onClick={() => onShare(item)}
               className="flex w-full items-center justify-center gap-2 rounded-2xl bg-panel2 py-3 text-sm font-bold text-snow ring-1 ring-line transition-transform active:scale-[.97]"
@@ -849,19 +859,22 @@ function AddSheet({ lib, tmdbKey, onClose, onAdd, onPreview }) {
 
 /* ---------- Descubrir: desliza y decide (el «tinder» de pelis) ---------- */
 
-/* Cierre diario de la sala: tope de decisiones al día para que Descubrir sea un
-   ratito de cine y no un pozo de scroll infinito (y el catálogo dure). */
-const DECK_DAILY_LIMIT = 30;
+/* Cierre de la sala: tope de decisiones por tanda para que Descubrir sea un
+   ratito de cine y no un pozo de scroll infinito (y el catálogo dure). La tanda
+   arranca con la primera decisión y la sala reabre 12 h después. */
+const DECK_LIMIT = 30;
+const DECK_WINDOW_MS = 12 * 36e5;
 const DECK_QUOTA_KEY = "butaca:deckquota:v1";
 
-function loadDeckUsed() {
+function loadDeckQuota() {
   try {
     const q = JSON.parse(localStorage.getItem(DECK_QUOTA_KEY));
-    return q && q.day === dayStr() ? q.count : 0;
-  } catch { return 0; }
+    if (q && q.start && Date.now() - q.start < DECK_WINDOW_MS) return q;
+  } catch { /* datos corruptos o formato viejo: tanda nueva */ }
+  return { start: 0, count: 0 };
 }
-function saveDeckUsed(count) {
-  try { localStorage.setItem(DECK_QUOTA_KEY, JSON.stringify({ day: dayStr(), count })); } catch { /* sin hueco */ }
+function saveDeckQuota(q) {
+  try { localStorage.setItem(DECK_QUOTA_KEY, JSON.stringify(q)); } catch { /* sin hueco */ }
 }
 
 /* una del trending, una de otra década, una del trending… variedad temporal */
@@ -880,7 +893,7 @@ const SWIPE = {
   right: { status: "watched", label: "VISTA", emoji: "✓", color: "#4ade80" },
 };
 
-function DiscoverDeck({ cards, left, canLoadMore, onDecide, onInfo, onLoadMore, onClose }) {
+function DiscoverDeck({ cards, left, reopenIn, canLoadMore, onDecide, onInfo, onLoadMore, onClose }) {
   const [drag, setDrag] = useState(null);   // {dx, dy} mientras arrastras
   const [fly, setFly] = useState(null);     // dirección de salida animada
   const startRef = useRef(null);            // {x, y, moved} — moved distingue arrastre de toque
@@ -925,7 +938,7 @@ function DiscoverDeck({ cards, left, canLoadMore, onDecide, onInfo, onLoadMore, 
           <p className="text-xs text-fog">desliza: 🥢 ni con un palo · ⬆ por ver · ✓ vista</p>
           <p className="text-xs text-fog/70">
             toca la carta para ver su ficha completa
-            {left > 0 && left <= 10 && <span className="font-semibold text-brass2"> · {left === 1 ? "queda 1 hoy" : `quedan ${left} hoy`}</span>}
+            {left > 0 && left <= 10 && <span className="font-semibold text-brass2"> · {left === 1 ? "queda 1" : `quedan ${left}`}</span>}
           </p>
         </div>
         <button onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-full bg-white/5 text-snow transition-transform active:scale-90" aria-label="Cerrar Descubrir">
@@ -937,10 +950,10 @@ function DiscoverDeck({ cards, left, canLoadMore, onDecide, onInfo, onLoadMore, 
         {left <= 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
             <p className="text-4xl">🌙</p>
-            <p className="text-base font-extrabold tracking-tight text-snow">La sala cierra por hoy</p>
+            <p className="text-base font-extrabold tracking-tight text-snow">La sala cierra un rato</p>
             <p className="max-w-64 text-sm leading-relaxed text-fog">
-              Ya has decidido sobre {DECK_DAILY_LIMIT} títulos hoy. Mañana se renueva la
-              cartelera — y así te da tiempo a ver alguna 😉
+              Ya has decidido sobre {DECK_LIMIT} títulos de una tacada. Reabre en ~{reopenIn} h
+              — así te da tiempo a ver alguna 😉
             </p>
           </div>
         ) : cards.length === 0 ? (
@@ -1262,8 +1275,9 @@ export default function App() {
   const [tmdbKey, setTmdbKey] = useState(loadTmdbKey);
   const [activity, setActivity] = useState(loadActivity);
   const [updates, setUpdates] = useState({}); // series con episodios nuevos en TMDB
+  const [providers, setProviders] = useState({}); // plataformas de streaming por `type:tmdbId`
   const [deck, setDeck] = useState(null); // Descubrir: { cards, page } o null
-  const [deckUsed, setDeckUsed] = useState(loadDeckUsed); // decisiones de hoy (cierre diario)
+  const [deckQuota, setDeckQuota] = useState(loadDeckQuota); // {start, count} de la tanda (cierre 12 h)
   const deckLoading = useRef(false);
   const toastTimer = useRef(null);
 
@@ -1299,6 +1313,18 @@ export default function App() {
   }, [missing, tmdbKey]);
 
   const detail = useMemo(() => lib.find((i) => i.id === detailId) || null, [lib, detailId]);
+
+  // al abrir una ficha (real o preview): ¿en qué plataforma está?
+  useEffect(() => {
+    const it = preview || detail;
+    if (!it?.tmdbId || !tmdbKey) return;
+    const k = `${it.type}:${it.tmdbId}`;
+    if (k in providers) return;
+    fetchProviders(it, tmdbKey)
+      .then((names) => setProviders((p) => ({ ...p, [k]: names })))
+      .catch(() => { /* sin red: la ficha funciona igual */ });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detail, preview, tmdbKey]);
 
   const say = (msg) => {
     clearTimeout(toastTimer.current);
@@ -1470,7 +1496,11 @@ export default function App() {
   /* tarjeta para compartir (Web Share en móvil, descarga PNG en escritorio) */
   const doShare = async (item) => {
     try {
-      const result = await shareCard(item, [item.img, posters[posterKey(item)]]);
+      // a medias: la tarjeta presume de progreso en vez de estrellas
+      const progress = item.status === "watched" ? null
+        : item.type === "movie" ? "▶ Viéndola"
+          : lastSeenLabel(item) ? `▶ Voy por ${lastSeenLabel(item)}` : "▶ Empezándola";
+      const result = await shareCard(item, [item.img, posters[posterKey(item)]], progress);
       say(result === "shared" ? "📤 Tarjeta compartida" : "🖼️ Tarjeta descargada");
     } catch {
       say("No se pudo crear la tarjeta");
@@ -1513,6 +1543,7 @@ export default function App() {
   };
 
   const openDiscover = async () => {
+    setDeckQuota(loadDeckQuota()); // por si la tanda de 12 h expiró desde el arranque
     decided.current = new Set(); // lo decidido ya está en la videoteca a estas alturas
     setDeck({ cards: notOwned(catalog), page: 0 });
     if (tmdbKey && !deckLoading.current) {
@@ -1539,17 +1570,20 @@ export default function App() {
     deckLoading.current = false;
   };
 
-  /* gasta un turno del cierre diario */
+  /* gasta un turno de la tanda (la primera decisión la arranca) */
   const spendDeckTurn = () => {
-    setDeckUsed((n) => {
-      const next = n + 1;
-      saveDeckUsed(next);
+    setDeckQuota((q) => {
+      const next = q.start && Date.now() - q.start < DECK_WINDOW_MS
+        ? { ...q, count: q.count + 1 }
+        : { start: Date.now(), count: 1 };
+      saveDeckQuota(next);
       return next;
     });
   };
+  const deckLeft = DECK_LIMIT - (deckQuota.start && Date.now() - deckQuota.start < DECK_WINDOW_MS ? deckQuota.count : 0);
 
   const deckDecide = (card, dir) => {
-    if (deckUsed >= DECK_DAILY_LIMIT) return; // la sala ya cerró hoy
+    if (deckLeft <= 0) return; // la sala está cerrada
     spendDeckTurn();
     decided.current.add(`${card.type}:${card.title}`);
     // siempre por addFromCatalog: hidrata TMDB (temporadas/duración) y normaliza
@@ -1648,12 +1682,14 @@ export default function App() {
           onAdd={addFromCatalog} onPreview={openFromSearch} />
       )}
       {deck && (
-        <DiscoverDeck cards={deck.cards} left={DECK_DAILY_LIMIT - deckUsed} canLoadMore={!!tmdbKey}
+        <DiscoverDeck cards={deck.cards} left={deckLeft} canLoadMore={!!tmdbKey}
+          reopenIn={Math.max(1, Math.ceil((deckQuota.start + DECK_WINDOW_MS - Date.now()) / 36e5))}
           onDecide={deckDecide} onInfo={openFromSearch} onLoadMore={deckMore} onClose={() => setDeck(null)} />
       )}
       {detail && (
         <DetailSheet
           item={detail}
+          providers={detail.tmdbId ? providers[`${detail.type}:${detail.tmdbId}`] : undefined}
           update={updates[posterKey(detail)]}
           onApplyUpdate={applyUpdate}
           onNote={(it, text) => patch(it.id, (i) => ({ ...i, note: text }))}
@@ -1671,6 +1707,7 @@ export default function App() {
         <DetailSheet
           item={preview}
           preview
+          providers={preview.tmdbId ? providers[`${preview.type}:${preview.tmdbId}`] : undefined}
           onClose={() => setPreview(null)}
           onSetStatus={(it, s) => adopt(it, s)}
           onSetEpisode={adoptEpisode}
