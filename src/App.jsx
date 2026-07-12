@@ -29,6 +29,17 @@ const STATUSES_FOR = {
   series: ["watchlist", "watching", "paused", "watched", "dropped", "skipped"],
 };
 
+/** ¿Son el mismo título? Con TMDB manda el id — hay remakes con el mismo nombre
+    (dos «Desafío total», dos «Hércules»…); sin id, título + tipo + año compatible. */
+const sameItem = (a, b) =>
+  a.type === b.type &&
+  (a.tmdbId && b.tmdbId
+    ? a.tmdbId === b.tmdbId
+    : a.title === b.title && (!a.year || !b.year || a.year === b.year));
+
+/** Clave estable para sets/mapas con la misma regla que sameItem. */
+const itemKey = (i) => `${i.type}:${i.tmdbId || `${i.title}·${i.year || ""}`}`;
+
 function seriesProgress(item) {
   const seasons = item.seasons || []; // datos antiguos o incompletos: no reventar el render
   const total = seasons.reduce((n, s) => n + s.eps, 0);
@@ -637,7 +648,7 @@ function DetailSheet({ item, preview = false, providers, update, onApplyUpdate, 
             </p>
           )}
 
-          {["watched", "watching", "paused"].includes(item.status) && !preview && (
+          {["watched", "watching", "paused", "watchlist"].includes(item.status) && !preview && (
             <button
               onClick={() => onShare(item)}
               className="flex w-full items-center justify-center gap-2 rounded-2xl bg-panel2 py-3 text-sm font-bold text-snow ring-1 ring-line transition-transform active:scale-[.97]"
@@ -749,7 +760,7 @@ function AddSheet({ lib, tmdbKey, onClose, onAdd, onPreview }) {
     return () => clearTimeout(t);
   }, [q, tmdbKey]);
 
-  const inLib = (c) => lib.find((i) => i.title === c.title && i.type === c.type);
+  const inLib = (c) => lib.find((i) => sameItem(i, c));
   const pool = online ?? catalog.filter((c) => c.title.toLowerCase().includes(q.trim().toLowerCase()));
   const results = pool.filter((c) => filter === "all" || c.type === filter);
 
@@ -1437,7 +1448,7 @@ export default function App() {
 
   /* abrir un resultado de búsqueda: ficha real si ya está, preview si no */
   const openFromSearch = async (c) => {
-    const existing = lib.find((i) => i.title === c.title && i.type === c.type);
+    const existing = lib.find((i) => sameItem(i, c));
     if (existing) { setDetailId(existing.id); return; }
     let item = c;
     if (c.tmdbId) {
@@ -1462,9 +1473,9 @@ export default function App() {
     }
     setLib((L) => [item, ...L]);
     // si venía del deck de Descubrir, su carta ya está decidida: fuera (y gasta turno)
-    if (deck && deck.cards.some((c) => c.type === item.type && c.title === item.title)) spendDeckTurn();
-    decided.current.add(`${item.type}:${item.title}`);
-    setDeck((d) => d && { ...d, cards: d.cards.filter((c) => !(c.type === item.type && c.title === item.title)) });
+    if (deck && deck.cards.some((c) => sameItem(c, item))) spendDeckTurn();
+    decided.current.add(itemKey(item));
+    setDeck((d) => d && { ...d, cards: d.cards.filter((c) => !sameItem(c, item)) });
     setPreview(null);
     setDetailId(item.id);
     const where = lastSeenLabel(item);
@@ -1496,11 +1507,14 @@ export default function App() {
   /* tarjeta para compartir (Web Share en móvil, descarga PNG en escritorio) */
   const doShare = async (item) => {
     try {
-      // a medias: la tarjeta presume de progreso en vez de estrellas
-      const progress = item.status === "watched" ? null
-        : item.type === "movie" ? "▶ Viéndola"
-          : lastSeenLabel(item) ? `▶ Voy por ${lastSeenLabel(item)}` : "▶ Empezándola";
-      const result = await shareCard(item, [item.img, posters[posterKey(item)]], progress);
+      // sin terminar, la tarjeta presume de progreso o de buena pinta en vez de estrellas
+      const tagline = item.status === "watched" ? null
+        : item.status === "watchlist" ? "✨ ¡Qué buena pinta!"
+          : item.type === "movie" ? "▶ Viéndola"
+            : lastSeenLabel(item) ? `▶ Voy por ${lastSeenLabel(item)}` : "▶ Empezándola";
+      const shareTitle = item.status === "watched" ? `He visto ${item.title}`
+        : item.status === "watchlist" ? `Quiero ver ${item.title}` : `Estoy viendo ${item.title}`;
+      const result = await shareCard(item, [item.img, posters[posterKey(item)]], tagline, shareTitle);
       say(result === "shared" ? "📤 Tarjeta compartida" : "🖼️ Tarjeta descargada");
     } catch {
       say("No se pudo crear la tarjeta");
@@ -1528,18 +1542,21 @@ export default function App() {
      decisiones aún guardándose (la hidratación TMDB es asíncrona): sin ello, la
      recarga de trending podría volver a colar una carta recién descartada. */
   const decided = useRef(new Set());
-  const notOwned = (cards) => {
-    const have = new Set(lib.map((i) => `${i.type}:${i.title}`));
-    return cards.filter((c) => !have.has(`${c.type}:${c.title}`) && !decided.current.has(`${c.type}:${c.title}`));
-  };
+  const notOwned = (cards) =>
+    cards.filter((c) => !lib.some((i) => sameItem(i, c)) && !decided.current.has(itemKey(c)));
 
-  /* una del trending, una de otra década: si los clásicos fallan, trending a secas */
+  /* una del trending, una de otra década: si los clásicos fallan, trending a secas.
+     Dedupe dentro del lote: un clásico puede venir también re-trending. */
   const fetchDeckPage = async (page) => {
     const [trending, classics] = await Promise.all([
       fetchTrending(tmdbKey, page),
       fetchClassics(tmdbKey, Math.ceil(page / 2)).catch(() => []),
     ]);
-    return interleave(trending, classics);
+    const seen = new Set();
+    return interleave(trending, classics).filter((c) => {
+      const k = itemKey(c);
+      return seen.has(k) ? false : (seen.add(k), true);
+    });
   };
 
   const openDiscover = async () => {
@@ -1563,8 +1580,8 @@ export default function App() {
       setDeck((d) => {
         if (!d) return d;
         // el orden del trending baila entre páginas: sin esto salen cartas repetidas
-        const seen = new Set(d.cards.map((c) => `${c.type}:${c.title}`));
-        return { cards: [...d.cards, ...notOwned(batch).filter((c) => !seen.has(`${c.type}:${c.title}`))], page: d.page + 1 };
+        const seen = new Set(d.cards.map(itemKey));
+        return { cards: [...d.cards, ...notOwned(batch).filter((c) => !seen.has(itemKey(c)))], page: d.page + 1 };
       });
     } catch { say("Sin conexión con TMDB"); }
     deckLoading.current = false;
@@ -1585,7 +1602,7 @@ export default function App() {
   const deckDecide = (card, dir) => {
     if (deckLeft <= 0) return; // la sala está cerrada
     spendDeckTurn();
-    decided.current.add(`${card.type}:${card.title}`);
+    decided.current.add(itemKey(card));
     // siempre por addFromCatalog: hidrata TMDB (temporadas/duración) y normaliza
     // el título antes de guardarlo — una serie sin `seasons` rompería el render
     addFromCatalog(card, SWIPE[dir].status);
