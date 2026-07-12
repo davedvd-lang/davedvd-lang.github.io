@@ -21,8 +21,9 @@ function loadImage(url) {
   });
 }
 
-/** `progress`: texto tipo «▶ Voy por T2·E6» para series/pelis aún en curso. */
-export async function shareCard(item, posterUrls = [], progress = null) {
+/** `tagline`: texto ámbar para lo no terminado — «▶ Voy por T2·E6» (en curso)
+    o «✨ ¡Qué buena pinta!» (por ver). `shareTitle`: texto del Web Share. */
+export async function shareCard(item, posterUrls = [], tagline = null, shareTitle = null) {
   const W = 1080, H = 1350;
   const c = document.createElement("canvas");
   c.width = W; c.height = H;
@@ -82,26 +83,27 @@ export async function shareCard(item, posterUrls = [], progress = null) {
   shown.forEach((l, i) => ctx.fillText(l, W / 2, PY + PH + 110 + i * 84));
   let y = PY + PH + 110 + shown.length * 84;
 
-  // estrellas (si la terminaste) o progreso (si vas por mitad)
-  if (item.rating && !progress) {
+  // estrellas (si la terminaste) o coletilla (progreso / buena pinta)
+  if (item.rating && !tagline) {
     ctx.font = "84px system-ui";
     let stars = "";
     for (let i = 1; i <= 5; i++) stars += i <= item.rating ? "★" : "☆";
     ctx.fillStyle = "#f4b43e";
     ctx.fillText(stars, W / 2, y + 30);
     y += 110;
-  } else if (progress) {
+  } else if (tagline) {
     ctx.fillStyle = "#f4b43e";
     ctx.font = font(56, 800);
-    ctx.fillText(progress, W / 2, y + 26);
+    ctx.fillText(tagline, W / 2, y + 26);
     y += 100;
   }
 
-  // subtítulo
+  // subtítulo (con la nota de la crítica si la tenemos)
   ctx.fillStyle = "#97a3bd";
   ctx.font = font(40, 600);
   const times = item.rewatches ? ` · vista ${item.rewatches + 1} veces` : "";
-  ctx.fillText(`${item.year} · ${item.type === "movie" ? "película" : "serie"}${times}`, W / 2, y + 26);
+  const critic = item.tmdbRating ? ` · ★ ${item.tmdbRating} TMDB` : "";
+  ctx.fillText(`${item.year} · ${item.type === "movie" ? "película" : "serie"}${times}${critic}`, W / 2, y + 26);
 
   // pie de marca
   ctx.fillStyle = "#f4b43e";
@@ -113,7 +115,7 @@ export async function shareCard(item, posterUrls = [], progress = null) {
   const file = new File([blob], `butaca-${slug}.png`, { type: "image/png" });
 
   if (navigator.canShare?.({ files: [file] })) {
-    await navigator.share({ files: [file], title: `${progress ? "Estoy viendo" : "He visto"} ${item.title}` });
+    await navigator.share({ files: [file], title: shareTitle || `He visto ${item.title}` });
     return "shared";
   }
   const a = document.createElement("a");

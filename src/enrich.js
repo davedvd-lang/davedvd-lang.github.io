@@ -10,7 +10,8 @@
 const POSTER_CACHE = "butaca:posters:v1";
 export const TMDB_KEY = "butaca:tmdb-key";
 
-export const posterKey = (it) => `${it.type}:${it.title}`;
+// con año: dos pelis pueden compartir título (remakes tipo «Desafío total»)
+export const posterKey = (it) => `${it.type}:${it.title}:${it.year || ""}`;
 
 export function loadPosterCache() {
   try { return JSON.parse(localStorage.getItem(POSTER_CACHE)) || {}; } catch { return {}; }
@@ -107,19 +108,29 @@ export async function fetchTrending(apiKey, page = 1) {
     .map(mapTmdbResult);
 }
 
-/** Joyas de otras décadas para intercalar en «Descubrir»: pelis populares de una
-    época al azar (mínimo de votos para no sacar morralla). */
+/** Joyas de otras décadas para intercalar en «Descubrir»: pelis populares de
+    TRES épocas distintas al azar, en rueda — dos clásicas seguidas nunca son de
+    la misma década (mínimo de votos para no sacar morralla). */
 const ERAS = [[1950, 1969], [1970, 1979], [1980, 1989], [1990, 1999], [2000, 2009], [2010, 2019]];
 
 export async function fetchClassics(apiKey, page = 1) {
-  const [from, to] = ERAS[Math.floor(Math.random() * ERAS.length)];
-  const q = new URLSearchParams({
-    api_key: apiKey, language: "es-ES", sort_by: "popularity.desc", include_adult: "false",
-    "primary_release_date.gte": `${from}-01-01`, "primary_release_date.lte": `${to}-12-31`,
-    "vote_count.gte": "300", page: String(page),
-  });
-  const j = await getJSON(`https://api.themoviedb.org/3/discover/movie?${q}`);
-  return (j.results || []).map((r) => mapTmdbResult({ ...r, media_type: "movie" }));
+  const eras = [...ERAS].sort(() => Math.random() - 0.5).slice(0, 3);
+  const batches = await Promise.all(eras.map(async ([from, to]) => {
+    try {
+      const q = new URLSearchParams({
+        api_key: apiKey, language: "es-ES", sort_by: "popularity.desc", include_adult: "false",
+        "primary_release_date.gte": `${from}-01-01`, "primary_release_date.lte": `${to}-12-31`,
+        "vote_count.gte": "300", page: String(page),
+      });
+      const j = await getJSON(`https://api.themoviedb.org/3/discover/movie?${q}`);
+      return (j.results || []).map((r) => mapTmdbResult({ ...r, media_type: "movie" }));
+    } catch { return []; /* esa época sin red: seguimos con las otras */ }
+  }));
+  const out = [];
+  const longest = Math.max(...batches.map((b) => b.length));
+  for (let i = 0; i < longest; i++)
+    for (const b of batches) if (b[i]) out.push(b[i]);
+  return out;
 }
 
 /** Completa un resultado de TMDB antes de añadirlo: temporadas/duración y géneros reales. */
