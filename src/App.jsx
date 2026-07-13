@@ -1545,15 +1545,19 @@ export default function App() {
   const notOwned = (cards) =>
     cards.filter((c) => !lib.some((i) => sameItem(i, c)) && !decided.current.has(itemKey(c)));
 
-  /* una del trending, una de otra década: si los clásicos fallan, trending a secas.
-     Dedupe dentro del lote: un clásico puede venir también re-trending. */
+  /* una del trending, una de otra década — ya filtrado a lo que no tienes y
+     EQUILIBRADO: los clásicos nunca superan a los estrenos frescos de la tanda
+     (con el trending agotado quedan de goteo, no de alud). Dedupe del lote:
+     un clásico puede venir también re-trending. */
   const fetchDeckPage = async (page) => {
     const [trending, classics] = await Promise.all([
       fetchTrending(tmdbKey, page),
       fetchClassics(tmdbKey, Math.ceil(page / 2)).catch(() => []),
     ]);
+    const freshT = notOwned(trending);
+    const freshC = notOwned(classics).slice(0, Math.max(freshT.length, 3));
     const seen = new Set();
-    return interleave(trending, classics).filter((c) => {
+    return interleave(freshT, freshC).filter((c) => {
       const k = itemKey(c);
       return seen.has(k) ? false : (seen.add(k), true);
     });
@@ -1565,9 +1569,20 @@ export default function App() {
     setDeck({ cards: notOwned(catalog), page: 0 });
     if (tmdbKey && !deckLoading.current) {
       deckLoading.current = true;
+      // si ya has decidido sobre media semana de trending, la página 1 sale vacía
+      // de estrenos: pasamos páginas hasta juntar mazo con material nuevo
+      let cards = [], page = 0;
       try {
-        setDeck({ cards: notOwned(await fetchDeckPage(1)), page: 1 });
-      } catch { /* nos quedamos con el catálogo local */ }
+        while (cards.length < 12 && page < 5) {
+          page += 1;
+          const batch = await fetchDeckPage(page);
+          const seen = new Set(cards.map(itemKey));
+          const fresh = batch.filter((c) => !seen.has(itemKey(c)));
+          if (fresh.length === 0 && cards.length) break; // el trending ya se repite
+          cards = [...cards, ...fresh];
+        }
+      } catch { /* sin red a mitad: jugamos con lo que haya */ }
+      if (cards.length) setDeck({ cards, page });
       deckLoading.current = false;
     }
   };
@@ -1576,12 +1591,12 @@ export default function App() {
     if (!tmdbKey || !deck || deckLoading.current) return;
     deckLoading.current = true;
     try {
-      const batch = await fetchDeckPage(deck.page + 1);
+      const batch = await fetchDeckPage(deck.page + 1); // ya filtrado a lo no visto
       setDeck((d) => {
         if (!d) return d;
         // el orden del trending baila entre páginas: sin esto salen cartas repetidas
         const seen = new Set(d.cards.map(itemKey));
-        return { cards: [...d.cards, ...notOwned(batch).filter((c) => !seen.has(itemKey(c)))], page: d.page + 1 };
+        return { cards: [...d.cards, ...batch.filter((c) => !seen.has(itemKey(c)))], page: d.page + 1 };
       });
     } catch { say("Sin conexión con TMDB"); }
     deckLoading.current = false;
