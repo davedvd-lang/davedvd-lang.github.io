@@ -27,3 +27,4 @@ ajusta `executablePath` al principio de cada script si tu Chromium no está en
 | smoke11.mjs | deck: mezcla de épocas (trending + clásicos) y cierre (30 por tanda de 12 h) |
 | smoke12.mjs | compartir series a medias, «En streaming» (JustWatch) y reapertura tras 12 h |
 | smoke13.mjs | remakes con mismo título (Desafío total), tarjeta de watchlist, décadas rotando |
+| smoke14.mjs | trending p1 agotado: el deck pasa páginas y los clásicos no lo inundan |
