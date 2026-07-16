@@ -149,24 +149,39 @@ export async function hydrateTmdbItem(result, apiKey) {
   return { ...result, genre: genre || result.genre, runtime: j.runtime || undefined };
 }
 
-/* ---------- ¿dónde verla? (plataformas de streaming, datos de JustWatch vía TMDB) ---------- */
+/* ---------- extras de ficha: plataformas, reparto, dirección y tráiler ---------- */
 
-const PROV_CACHE = "butaca:providers:v1";
+const EXTRAS_CACHE = "butaca:extras:v1";
 
-/** Plataformas de suscripción donde está el título en España (caché de 7 días). */
-export async function fetchProviders(item, apiKey) {
-  if (!apiKey || !item.tmdbId) return [];
+/** Todo en UNA llamada (append_to_response): plataformas de suscripción en España
+    (datos de JustWatch), reparto, dirección/creadores y tráiler de YouTube
+    (preferencia: tráiler en español). Caché de 7 días por título. */
+export async function fetchExtras(item, apiKey) {
+  if (!apiKey || !item.tmdbId) return null;
   let cache;
-  try { cache = JSON.parse(localStorage.getItem(PROV_CACHE)) || {}; } catch { cache = {}; }
+  try { cache = JSON.parse(localStorage.getItem(EXTRAS_CACHE)) || {}; } catch { cache = {}; }
   const k = `${item.type}:${item.tmdbId}`;
   const hit = cache[k];
-  if (hit && Date.now() - hit.ts < 7 * 864e5) return hit.names;
+  if (hit && Date.now() - hit.ts < 7 * 864e5) return hit.data;
   const kind = item.type === "series" ? "tv" : "movie";
-  const j = await getJSON(`https://api.themoviedb.org/3/${kind}/${item.tmdbId}/watch/providers?api_key=${apiKey}`);
-  const names = [...new Set((j.results?.ES?.flatrate || []).map((p) => p.provider_name))].slice(0, 4);
-  cache[k] = { ts: Date.now(), names };
-  try { localStorage.setItem(PROV_CACHE, JSON.stringify(cache)); } catch { /* sin hueco */ }
-  return names;
+  const q = new URLSearchParams({
+    api_key: apiKey, language: "es-ES",
+    append_to_response: "videos,credits,watch/providers",
+    include_video_language: "es,en",
+  });
+  const j = await getJSON(`https://api.themoviedb.org/3/${kind}/${item.tmdbId}?${q}`);
+  const providers = [...new Set((j["watch/providers"]?.results?.ES?.flatrate || []).map((p) => p.provider_name))].slice(0, 4);
+  const cast = (j.credits?.cast || []).slice(0, 4).map((p) => p.name);
+  const director = kind === "tv"
+    ? (j.created_by || []).map((p) => p.name).join(", ")
+    : (j.credits?.crew || []).filter((p) => p.job === "Director").map((p) => p.name).join(", ");
+  const vids = (j.videos?.results || []).filter((v) => v.site === "YouTube" && (v.type === "Trailer" || v.type === "Teaser"));
+  const pick = vids.find((v) => v.iso_639_1 === "es" && v.type === "Trailer")
+    || vids.find((v) => v.type === "Trailer") || vids[0];
+  const data = { providers, cast, director, trailer: pick ? `https://www.youtube.com/watch?v=${pick.key}` : "" };
+  cache[k] = { ts: Date.now(), data };
+  try { localStorage.setItem(EXTRAS_CACHE, JSON.stringify(cache)); } catch { /* sin hueco */ }
+  return data;
 }
 
 /* ---------- aviso de nueva temporada (series en pausa / en curso) ---------- */
