@@ -264,8 +264,10 @@ function HomeView({ lib, streak, pausedNews, onAdvance, onStart, onOpen, onAdd, 
         <p className="flex items-center gap-2 text-sm font-semibold text-brass">
           <Popcorn size={15} /> BUTACA
         </p>
-        <h1 className="mt-1 text-[26px] font-extrabold tracking-tight text-snow">
-          {greeting} 🍿 ¿Qué toca hoy?
+        {/* dos líneas a propósito: en móvil la frase seguida partía por donde quería */}
+        <h1 className="mt-1 text-[26px] font-extrabold leading-tight tracking-tight text-snow">
+          <span className="block">{greeting} 🍿</span>
+          <span className="block">¿Qué toca hoy?</span>
         </h1>
         <div className="mt-4 flex gap-2 overflow-x-auto no-scrollbar">
           {streak >= 2 && (
@@ -902,6 +904,8 @@ const SWIPE = {
   left: { status: "skipped", label: "NI CON UN PALO", emoji: "🥢", color: "#97a3bd" },
   up: { status: "watchlist", label: "POR VER", emoji: "➕", color: "#f4b43e" },
   right: { status: "watched", label: "VISTA", emoji: "✓", color: "#4ade80" },
+  // «no sé, hoy no»: no guarda nada — la carta se aparta y ya reaparecerá otro día
+  down: { status: null, label: "OTRO DÍA", emoji: "💤", color: "#60a5fa" },
 };
 
 function DiscoverDeck({ cards, left, reopenIn, canLoadMore, onDecide, onInfo, onLoadMore, onClose }) {
@@ -913,7 +917,7 @@ function DiscoverDeck({ cards, left, reopenIn, canLoadMore, onDecide, onInfo, on
 
   const current = cards[0];
   const dirOf = (d) => d
-    ? d.dy < -70 && Math.abs(d.dy) > Math.abs(d.dx) ? "up"
+    ? Math.abs(d.dy) > 70 && Math.abs(d.dy) > Math.abs(d.dx) ? (d.dy < 0 ? "up" : "down")
       : d.dx > 70 ? "right" : d.dx < -70 ? "left" : null
     : null;
   const dir = dirOf(drag);
@@ -939,6 +943,7 @@ function DiscoverDeck({ cards, left, reopenIn, canLoadMore, onDecide, onInfo, on
     left: "translate(-120vw, 0) rotate(-24deg)",
     right: "translate(120vw, 0) rotate(24deg)",
     up: "translate(0, -120vh)",
+    down: "translate(0, 120vh)",
   };
 
   return (
@@ -946,7 +951,7 @@ function DiscoverDeck({ cards, left, reopenIn, canLoadMore, onDecide, onInfo, on
       <div className="flex items-center justify-between px-5 pb-2 pt-6">
         <div>
           <h2 className="text-xl font-extrabold tracking-tight text-snow">Descubrir</h2>
-          <p className="text-xs text-fog">desliza: 🥢 ni con un palo · ⬆ por ver · ✓ vista</p>
+          <p className="text-xs text-fog">desliza: 🥢 ni con un palo · ⬆ por ver · ✓ vista · ⬇ otro día</p>
           <p className="text-xs text-fog/70">
             toca la carta para ver su ficha completa
             {left > 0 && left <= 10 && <span className="font-semibold text-brass2"> · {left === 1 ? "queda 1" : `quedan ${left}`}</span>}
@@ -1040,6 +1045,10 @@ function DiscoverDeck({ cards, left, reopenIn, canLoadMore, onDecide, onInfo, on
           <button onClick={() => decideByButton("left")} aria-label="Ni con un palo"
             className="flex h-14 w-14 items-center justify-center rounded-full bg-panel text-2xl ring-1 ring-line transition-transform active:scale-90">
             🥢
+          </button>
+          <button onClick={() => decideByButton("down")} aria-label="Otro día"
+            className="flex h-12 w-12 items-center justify-center rounded-full bg-panel text-xl ring-1 ring-line transition-transform active:scale-90">
+            💤
           </button>
           <button onClick={() => decideByButton("up")} aria-label="Añadir a Por ver"
             className="flex h-16 w-16 items-center justify-center rounded-full bg-brass text-ink shadow-lg shadow-brass/30 transition-transform active:scale-90">
@@ -1580,9 +1589,9 @@ export default function App() {
           const fresh = batch.filter((c) => !seen.has(itemKey(c)));
           if (fresh.length === 0 && cards.length) break; // el trending ya se repite
           cards = [...cards, ...fresh];
+          if (cards.length) setDeck({ cards, page }); // pinta ya; el resto se suma solo
         }
-      } catch { /* sin red a mitad: jugamos con lo que haya */ }
-      if (cards.length) setDeck({ cards, page });
+      } catch { /* sin red a mitad: jugamos con lo que haya (o el catálogo local) */ }
       deckLoading.current = false;
     }
   };
@@ -1617,10 +1626,14 @@ export default function App() {
   const deckDecide = (card, dir) => {
     if (deckLeft <= 0) return; // la sala está cerrada
     spendDeckTurn();
-    decided.current.add(itemKey(card));
-    // siempre por addFromCatalog: hidrata TMDB (temporadas/duración) y normaliza
-    // el título antes de guardarlo — una serie sin `seasons` rompería el render
-    addFromCatalog(card, SWIPE[dir].status);
+    decided.current.add(itemKey(card)); // en ⬇ solo aparta la carta esta tanda
+    if (dir === "down") {
+      say(`💤 «${card.title}» — otro día será`);
+    } else {
+      // siempre por addFromCatalog: hidrata TMDB (temporadas/duración) y normaliza
+      // el título antes de guardarlo — una serie sin `seasons` rompería el render
+      addFromCatalog(card, SWIPE[dir].status);
+    }
     setDeck((d) => d && { ...d, cards: d.cards.filter((c) => c !== card) });
     if (deck && deck.cards.length <= 3 && tmdbKey) deckMore();
   };

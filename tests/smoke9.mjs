@@ -12,6 +12,8 @@ const PNG_POSTER = Buffer.from(
 const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium" });
 const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true });
 
+// sin clásicos en este smoke: discover vacío para que no salga a red real
+await ctx.route("**/api.themoviedb.org/3/discover/movie**", (r) => r.fulfill({ json: { results: [] } }));
 await ctx.route("**/api.themoviedb.org/3/trending/all/week**", (r) =>
   r.fulfill({ json: { results: [
     { id: 94997, media_type: "tv", name: "La casa del dragón", first_air_date: "2022-08-21", overview: "La casa Targaryen, 200 años antes de Juego de Tronos.", poster_path: "/d.jpg" },
