@@ -28,3 +28,4 @@ ajusta `executablePath` al principio de cada script si tu Chromium no está en
 | smoke12.mjs | compartir series a medias, «En streaming» (JustWatch) y reapertura tras 12 h |
 | smoke13.mjs | remakes con mismo título (Desafío total), tarjeta de watchlist, décadas rotando |
 | smoke14.mjs | trending p1 agotado: el deck pasa páginas y los clásicos no lo inundan |
+| smoke15.mjs | saludo en dos líneas y swipe ⬇ «otro día» (aparta sin guardar, reaparece) |

@@ -9,6 +9,8 @@ const PNG_POSTER = Buffer.from(
 const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium" });
 const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true });
 
+// sin clásicos en este smoke: discover vacío para que no salga a red real
+await ctx.route("**/api.themoviedb.org/3/discover/movie**", (r) => r.fulfill({ json: { results: [] } }));
 await ctx.route("**/api.themoviedb.org/3/trending/all/week**", (r) =>
   r.fulfill({ json: { results: [
     { id: 91, media_type: "movie", title: "Heat", release_date: "1995-12-15", overview: "Un ladrón meticuloso y un detective obsesivo.", poster_path: "/h.jpg" },
