@@ -19,13 +19,12 @@ await ctx.route("**/api.themoviedb.org/3/trending/all/week**", (r) =>
 );
 await ctx.route("**/api.themoviedb.org/3/discover/movie**", (r) => r.fulfill({ json: { results: [] } }));
 await ctx.route("**/api.themoviedb.org/3/tv/**", (r) =>
-  r.fulfill({ json: { genres: [{ name: "Fantasía" }], seasons: [{ season_number: 1, episode_count: 10 }] } })
+  r.fulfill({ json: {
+    genres: [{ name: "Fantasía" }], seasons: [{ season_number: 1, episode_count: 10 }],
+    "watch/providers": { results: { ES: { flatrate: [{ provider_name: "Netflix" }, { provider_name: "HBO Max" }] } } },
+  } })
 );
 await ctx.route("**/api.themoviedb.org/3/movie/**", (r) => r.fulfill({ json: { runtime: 170, genres: [{ name: "Crimen" }] } }));
-// registrada la última para ganar a las genéricas de tv/movie
-await ctx.route("**/watch/providers**", (r) =>
-  r.fulfill({ json: { results: { ES: { flatrate: [{ provider_name: "Netflix" }, { provider_name: "HBO Max" }] } } } })
-);
 await ctx.route("**/image.tmdb.org/**", (r) => r.fulfill({ contentType: "image/png", body: PNG_POSTER }));
 await ctx.route(/(tvmaze|itunes\.apple)/, (r) => r.abort());
 

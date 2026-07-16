@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { seedLibrary, catalog } from "./data.js";
 import {
-  checkSeasonUpdates, enrichPosters, fetchClassics, fetchProviders, fetchTrending, hydrateTmdbItem, loadPosterCache,
+  checkSeasonUpdates, enrichPosters, fetchClassics, fetchExtras, fetchTrending, hydrateTmdbItem, loadPosterCache,
   loadTmdbKey, posterKey, saveTmdbKey, searchTmdb,
 } from "./enrich.js";
 import { shareCard } from "./share.js";
@@ -256,7 +256,8 @@ function HomeView({ lib, streak, pausedNews, onAdvance, onStart, onOpen, onAdd, 
   const watched = lib.filter((i) => i.status === "watched");
   const paused = lib.filter((i) => i.status === "paused");
   const hour = new Date().getHours();
-  const greeting = hour < 14 ? "Buenos días" : hour < 21 ? "Buenas tardes" : "Buenas noches";
+  // de madrugada nada de «buenos días»: a la 1 AM lo que hay es sesión golfa
+  const greeting = hour < 6 ? "Sesión golfa" : hour < 14 ? "Buenos días" : hour < 21 ? "Buenas tardes" : "Buenas noches";
 
   return (
     <div className="space-y-7 pb-6">
@@ -513,7 +514,7 @@ function LibraryView({ lib, type, tab, updates, onTab, onOpen, onAdvance, onResu
 
 /* ---------- ficha (bottom sheet) ---------- */
 
-function DetailSheet({ item, preview = false, providers, update, onApplyUpdate, onNote, onShare, onClose, onSetStatus, onSetEpisode, onAdvance, onRate, onRewatch, onRemove }) {
+function DetailSheet({ item, preview = false, extras, update, onApplyUpdate, onNote, onShare, onClose, onSetStatus, onSetEpisode, onAdvance, onRate, onRewatch, onRemove }) {
   const isSeries = item.type === "series";
   const prog = isSeries ? seriesProgress(item) : null;
   const left = lastSeenLabel(item);
@@ -548,14 +549,34 @@ function DetailSheet({ item, preview = false, providers, update, onApplyUpdate, 
             <p className="text-sm leading-relaxed text-fog">{item.synopsis}</p>
           )}
 
-          {providers?.length > 0 && (
+          {(extras?.director || extras?.cast?.length > 0) && (
+            <div className="space-y-1 text-xs leading-relaxed text-fog">
+              {extras.director && (
+                <p><span className="font-semibold text-snow">{isSeries ? "Creada por" : "Dirección"}:</span> {extras.director}</p>
+              )}
+              {extras.cast?.length > 0 && (
+                <p><span className="font-semibold text-snow">Reparto:</span> {extras.cast.join(", ")}</p>
+              )}
+            </div>
+          )}
+
+          {extras?.providers?.length > 0 && (
             <p className="flex flex-wrap items-center gap-1.5 text-xs text-fog">
               <Clapperboard size={13} className="shrink-0 text-brass" /> En streaming:
-              {providers.map((n) => (
+              {extras.providers.map((n) => (
                 <span key={n} className="rounded-full bg-panel2 px-2.5 py-1 font-semibold text-snow ring-1 ring-line">{n}</span>
               ))}
               <span className="text-fog/50">· datos de JustWatch</span>
             </p>
+          )}
+
+          {extras?.trailer && (
+            <a
+              href={extras.trailer} target="_blank" rel="noreferrer"
+              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-panel2 py-3 text-sm font-bold text-snow ring-1 ring-line transition-transform active:scale-[.97]"
+            >
+              <Play size={16} className="fill-brass text-brass" /> Ver tráiler
+            </a>
           )}
 
           {preview && (
@@ -1295,7 +1316,7 @@ export default function App() {
   const [tmdbKey, setTmdbKey] = useState(loadTmdbKey);
   const [activity, setActivity] = useState(loadActivity);
   const [updates, setUpdates] = useState({}); // series con episodios nuevos en TMDB
-  const [providers, setProviders] = useState({}); // plataformas de streaming por `type:tmdbId`
+  const [extras, setExtras] = useState({}); // por `type:tmdbId`: plataformas, reparto, dirección, tráiler
   const [deck, setDeck] = useState(null); // Descubrir: { cards, page } o null
   const [deckQuota, setDeckQuota] = useState(loadDeckQuota); // {start, count} de la tanda (cierre 12 h)
   const deckLoading = useRef(false);
@@ -1334,14 +1355,14 @@ export default function App() {
 
   const detail = useMemo(() => lib.find((i) => i.id === detailId) || null, [lib, detailId]);
 
-  // al abrir una ficha (real o preview): ¿en qué plataforma está?
+  // al abrir una ficha (real o preview): plataformas, reparto, dirección y tráiler
   useEffect(() => {
     const it = preview || detail;
     if (!it?.tmdbId || !tmdbKey) return;
     const k = `${it.type}:${it.tmdbId}`;
-    if (k in providers) return;
-    fetchProviders(it, tmdbKey)
-      .then((names) => setProviders((p) => ({ ...p, [k]: names })))
+    if (k in extras) return;
+    fetchExtras(it, tmdbKey)
+      .then((data) => data && setExtras((p) => ({ ...p, [k]: data })))
       .catch(() => { /* sin red: la ficha funciona igual */ });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [detail, preview, tmdbKey]);
@@ -1350,6 +1371,13 @@ export default function App() {
     clearTimeout(toastTimer.current);
     setToast({ msg, key: Date.now() });
     toastTimer.current = setTimeout(() => setToast(null), 2200);
+  };
+
+  /* toast con estrellas: al terminar algo, puntúalo ahí mismo sin abrir la ficha */
+  const sayRate = (msg, id) => {
+    clearTimeout(toastTimer.current);
+    setToast({ msg, key: Date.now(), rateId: id });
+    toastTimer.current = setTimeout(() => setToast(null), 7000);
   };
 
   const patch = (id, fn) => setLib((L) => L.map((i) => (i.id === id ? fn(i) : i)));
@@ -1368,7 +1396,8 @@ export default function App() {
     logActivity(1);
     if (item.type === "movie") {
       patch(item.id, finish);
-      say(item.rewatching ? `🔁 «${item.title}» vista otra vez` : `🎬 «${item.title}» marcada como vista`);
+      const msg = item.rewatching ? `🔁 «${item.title}» vista otra vez` : `🎬 «${item.title}» marcada como vista`;
+      if (item.rating) say(msg); else sayRate(msg, item.id);
       return;
     }
     const prog = seriesProgress(item);
@@ -1383,11 +1412,10 @@ export default function App() {
       };
       return willFinish ? finish(next) : next;
     });
-    say(
-      willFinish
-        ? item.rewatching ? `🔁 ¡Revisionado de «${item.title}» completado!` : `🏆 ¡«${item.title}» terminada!`
-        : `✓ ${epLabel(prog.next)} de «${item.title}»`
-    );
+    const msg = willFinish
+      ? item.rewatching ? `🔁 ¡Revisionado de «${item.title}» completado!` : `🏆 ¡«${item.title}» terminada!`
+      : `✓ ${epLabel(prog.next)} de «${item.title}»`;
+    if (willFinish && !item.rating) sayRate(msg, item.id); else say(msg);
   };
 
   /* fija el último episodio visto con un toque (toggle si repites en el mismo) */
@@ -1399,6 +1427,7 @@ export default function App() {
       done ? finish({ ...i, seasons: next.seasons })
         : { ...i, seasons: next.seasons, status: i.status === "watched" ? "watching" : i.status }
     );
+    if (done && item.status !== "watched" && !item.rating) sayRate(`🏆 ¡«${item.title}» terminada!`, item.id);
   };
 
   /* revisionado: pelis suman al contador; series reinician el progreso sin perder el historial */
@@ -1430,7 +1459,8 @@ export default function App() {
       }
       return { ...i, status };
     });
-    say(`Movida a «${STATUS[status].single}»`);
+    if (status === "watched" && !item.rating) sayRate(`✓ «${item.title}» vista`, item.id);
+    else say(`Movida a «${STATUS[status].single}»`);
   };
 
   const addFromCatalog = async (c, status) => {
@@ -1452,7 +1482,9 @@ export default function App() {
       logActivity(1);
     }
     setLib((L) => [entry, ...L]);
-    say(status === "skipped" ? `🥢 «${entry.title}»: ni con un palo` : `＋ «${entry.title}» en «${STATUS[status].single}»`);
+    if (status === "skipped") say(`🥢 «${entry.title}»: ni con un palo`);
+    else if (status === "watched") sayRate(`＋ «${entry.title}» en «Vista»`, entry.id);
+    else say(`＋ «${entry.title}» en «${STATUS[status].single}»`);
   };
 
   /* abrir un resultado de búsqueda: ficha real si ya está, preview si no */
@@ -1734,7 +1766,7 @@ export default function App() {
       {detail && (
         <DetailSheet
           item={detail}
-          providers={detail.tmdbId ? providers[`${detail.type}:${detail.tmdbId}`] : undefined}
+          extras={detail.tmdbId ? extras[`${detail.type}:${detail.tmdbId}`] : undefined}
           update={updates[posterKey(detail)]}
           onApplyUpdate={applyUpdate}
           onNote={(it, text) => patch(it.id, (i) => ({ ...i, note: text }))}
@@ -1752,7 +1784,7 @@ export default function App() {
         <DetailSheet
           item={preview}
           preview
-          providers={preview.tmdbId ? providers[`${preview.type}:${preview.tmdbId}`] : undefined}
+          extras={preview.tmdbId ? extras[`${preview.type}:${preview.tmdbId}`] : undefined}
           onClose={() => setPreview(null)}
           onSetStatus={(it, s) => adopt(it, s)}
           onSetEpisode={adoptEpisode}
@@ -1764,10 +1796,19 @@ export default function App() {
       )}
 
       {toast && (
-        <div key={toast.key} className="animate-toast pointer-events-none fixed inset-x-0 bottom-24 z-50 flex justify-center px-6">
-          <p className="rounded-full bg-panel2 px-4 py-2.5 text-sm font-semibold text-snow shadow-2xl shadow-black/50 ring-1 ring-brass/30">
-            {toast.msg}
-          </p>
+        <div key={toast.key} className={`animate-toast fixed inset-x-0 bottom-24 z-50 flex justify-center px-6 ${toast.rateId ? "" : "pointer-events-none"}`}>
+          <div className="flex flex-col items-center gap-2 rounded-3xl bg-panel2 px-4 py-2.5 text-sm font-semibold text-snow shadow-2xl shadow-black/50 ring-1 ring-brass/30">
+            <p>{toast.msg}</p>
+            {toast.rateId && (
+              <Stars
+                value={0}
+                onChange={(n) => {
+                  patch(toast.rateId, (i) => ({ ...i, rating: n }));
+                  say(`${"★".repeat(n)} ¡Apuntada!`);
+                }}
+              />
+            )}
+          </div>
         </div>
       )}
     </div>
