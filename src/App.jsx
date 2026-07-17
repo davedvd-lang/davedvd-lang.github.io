@@ -518,6 +518,8 @@ function DetailSheet({ item, preview = false, extras, update, onApplyUpdate, onN
   const isSeries = item.type === "series";
   const prog = isSeries ? seriesProgress(item) : null;
   const left = lastSeenLabel(item);
+  const [showTrailer, setShowTrailer] = useState(false);
+  const trailerKey = extras?.trailer?.match(/[?&]v=([\w-]+)/)?.[1];
 
   return (
     <div className="fixed inset-0 z-40 flex items-end justify-center" role="dialog" aria-modal="true">
@@ -570,13 +572,40 @@ function DetailSheet({ item, preview = false, extras, update, onApplyUpdate, onN
             </p>
           )}
 
-          {extras?.trailer && (
-            <a
-              href={extras.trailer} target="_blank" rel="noreferrer"
+          {trailerKey && (
+            <button
+              onClick={() => setShowTrailer(true)}
               className="flex w-full items-center justify-center gap-2 rounded-2xl bg-panel2 py-3 text-sm font-bold text-snow ring-1 ring-line transition-transform active:scale-[.97]"
             >
               <Play size={16} className="fill-brass text-brass" /> Ver tráiler
-            </a>
+            </button>
+          )}
+
+          {showTrailer && (
+            <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-3 p-4" role="dialog" aria-modal="true">
+              <button className="absolute inset-0 bg-black/90 animate-fadein" onClick={() => setShowTrailer(false)} aria-label="Cerrar tráiler" />
+              <div className="relative aspect-video w-full max-w-md overflow-hidden rounded-2xl bg-black ring-1 ring-line shadow-2xl shadow-black">
+                <iframe
+                  src={`https://www.youtube-nocookie.com/embed/${trailerKey}?autoplay=1&rel=0&hl=es`}
+                  title={`Tráiler de ${item.title}`}
+                  allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+                  allowFullScreen
+                  className="h-full w-full"
+                />
+              </div>
+              <div className="relative flex items-center gap-4">
+                <button
+                  onClick={() => setShowTrailer(false)}
+                  className="rounded-full bg-panel2 px-4 py-2 text-xs font-bold text-snow ring-1 ring-line transition-transform active:scale-95"
+                >
+                  ✕ Cerrar
+                </button>
+                {/* algunos tráilers bloquean el embebido: escape a YouTube */}
+                <a href={extras.trailer} target="_blank" rel="noreferrer" className="text-xs font-semibold text-fog underline-offset-2 hover:underline">
+                  Abrir en YouTube ↗
+                </a>
+              </div>
+            </div>
           )}
 
           {preview && (

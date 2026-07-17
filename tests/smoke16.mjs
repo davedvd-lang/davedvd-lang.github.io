@@ -34,6 +34,7 @@ await ctx.route("**/api.themoviedb.org/3/movie/**", (r) =>
 await ctx.route("**/api.themoviedb.org/3/discover/movie**", (r) => r.fulfill({ json: { results: [] } }));
 await ctx.route("**/api.themoviedb.org/3/trending/all/week**", (r) => r.fulfill({ json: { results: [] } }));
 await ctx.route("**/image.tmdb.org/**", (r) => r.fulfill({ contentType: "image/png", body: PNG_POSTER }));
+await ctx.route("**youtube-nocookie.com/**", (r) => r.fulfill({ contentType: "text/html", body: "<html><body>player</body></html>" }));
 await ctx.route(/(tvmaze|itunes\.apple)/, (r) => r.abort());
 
 const page = await ctx.newPage();
@@ -62,10 +63,20 @@ await page.waitForTimeout(800);
 ok("dirección en la ficha", (await page.getByText("James Ward Byrkit").count()) > 0);
 ok("reparto en la ficha", (await page.getByText(/Emily Baldoni, Maury Sterling/).count()) > 0);
 ok("streaming embebido (Filmin)", (await page.getByText("Filmin").count()) > 0);
-const trailer = page.getByRole("link", { name: /Ver tráiler/ });
-ok("botón de tráiler", (await trailer.count()) > 0);
-ok("tráiler en español preferido", (await trailer.getAttribute("href")) === "https://www.youtube.com/watch?v=trailerES");
+ok("botón de tráiler", (await page.getByRole("button", { name: /Ver tráiler/ }).count()) > 0);
 await page.screenshot({ path: "shot16-ficha.png" });
+
+// visor embebido dentro de la app (sin salir a YouTube)
+await page.getByRole("button", { name: /Ver tráiler/ }).click();
+await page.waitForTimeout(500);
+const iframe = page.locator("iframe[title='Tráiler de Coherence Online']");
+ok("visor de tráiler abierto en la app", (await iframe.count()) > 0);
+ok("tráiler en español preferido, en modo nocookie", ((await iframe.getAttribute("src")) || "").startsWith("https://www.youtube-nocookie.com/embed/trailerES"));
+ok("con escape a YouTube por si bloquea el embebido", (await page.getByRole("link", { name: /Abrir en YouTube/ }).count()) > 0);
+await page.screenshot({ path: "shot16-visor.png" });
+await page.getByRole("button", { name: "✕ Cerrar" }).click();
+await page.waitForTimeout(300);
+ok("el visor se cierra y la ficha sigue", (await iframe.count()) === 0 && (await page.getByText("James Ward Byrkit").count()) > 0);
 
 // 3. adoptarla como vista abre su ficha con las estrellas a mano
 await page.getByRole("button", { name: "Vista", exact: true }).click();
