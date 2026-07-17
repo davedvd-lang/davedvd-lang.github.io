@@ -59,8 +59,12 @@ también el proyecto Android) → `node tests/smoke8.mjs` → commit + push a `m
    - el botón **Exportar** dentro del WebView (si no descarga: integrar
      `@capacitor/filesystem` + `@capacitor/share`, ya previsto en ANDROID.md);
    - la tarjeta de **Compartir** con Web Share nativo.
-2. **Antes de subir a Play Store** (pendientes de código, por hacer en la próxima sesión):
+2. **Antes de subir a Play Store**:
    - ~~atribución TMDB obligatoria en Stats~~ ✅ hecha (2026-07-10);
+   - ~~clave TMDB integrada para el build de la tienda~~ ✅ hecha (2026-07-17):
+     `BUTACA_TMDB_KEY=xxx npm run android` — la app funciona sin configurar nada;
+     tras compilar el AAB, `npm run build` a secas para no subir la clave al repo.
+     Mini-tutorial de «consigue tu clave» en Stats para la web sin clave integrada;
    - decidir el `applicationId` definitivo (ahora `com.davedvd.butaca` — inmutable tras publicar);
    - subir `versionCode/versionName` en `android/app/build.gradle` por versión.
 3. **Play Store**: keystore + AAB firmado + ficha (política de privacidad análoga a la de

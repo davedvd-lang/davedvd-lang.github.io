@@ -12,7 +12,11 @@ const js = (
     format: "iife",
     write: false,
     jsx: "automatic",
-    define: { "process.env.NODE_ENV": '"production"' },
+    define: {
+      "process.env.NODE_ENV": '"production"',
+      // clave TMDB de serie (para el APK de la tienda): BUTACA_TMDB_KEY=xxx npm run android
+      __BUTACA_TMDB_KEY__: JSON.stringify(process.env.BUTACA_TMDB_KEY || ""),
+    },
   })
 ).outputFiles[0].text;
 
@@ -59,4 +63,7 @@ for (const f of ["manifest.webmanifest", "sw.js", "icon-192.png", "icon-512.png"
 mkdirSync("www", { recursive: true });
 writeFileSync("www/index.html", readFileSync("dist/index.html"));
 
+if (process.env.BUTACA_TMDB_KEY) {
+  console.log("⚠️  Build con clave TMDB integrada: para el APK/AAB. NO subas este index.html al repo público.");
+}
 console.log("OK → index.html, www/ y activos PWA (dist/ para previsualización)");

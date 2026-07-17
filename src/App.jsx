@@ -1235,6 +1235,17 @@ function StatsView({ lib, activity, tmdbKey, onSaveKey, onReset, onExport, onImp
             buscador encuentra cualquier título, con carátula y sinopsis en español. La clave se guarda
             solo en tu dispositivo.
           </p>
+          <ol className="mt-2 list-decimal space-y-0.5 pl-4 text-xs leading-relaxed text-fog">
+            <li>Crea una cuenta gratis en themoviedb.org (2 min)</li>
+            <li>En Ajustes → API, solicita una clave («Developer», uso personal)</li>
+            <li>Copia la <span className="font-semibold text-snow">API Key</span> y pégala aquí</li>
+          </ol>
+          <a
+            href="https://www.themoviedb.org/settings/api" target="_blank" rel="noreferrer"
+            className="mt-2 inline-block text-xs font-semibold text-brass underline-offset-2 hover:underline"
+          >
+            Abrir themoviedb.org ↗
+          </a>
           <div className="mt-3 flex gap-2">
             <input
               value={draft}

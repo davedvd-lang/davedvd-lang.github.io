@@ -20,8 +20,12 @@ function savePosterCache(cache) {
   try { localStorage.setItem(POSTER_CACHE, JSON.stringify(cache)); } catch { /* sin hueco */ }
 }
 
+// Clave integrada en el build (APK de la tienda): la app funciona sin configurar
+// nada; si el usuario guarda la suya en Stats, la suya manda.
+const BUILT_IN_KEY = typeof __BUTACA_TMDB_KEY__ !== "undefined" ? __BUTACA_TMDB_KEY__ : "";
+
 export function loadTmdbKey() {
-  try { return localStorage.getItem(TMDB_KEY) || ""; } catch { return ""; }
+  try { return localStorage.getItem(TMDB_KEY) || BUILT_IN_KEY; } catch { return BUILT_IN_KEY; }
 }
 export function saveTmdbKey(key) {
   try { localStorage.setItem(TMDB_KEY, key); } catch { /* sin hueco */ }
