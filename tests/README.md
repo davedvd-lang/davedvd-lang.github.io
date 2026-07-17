@@ -29,4 +29,4 @@ ajusta `executablePath` al principio de cada script si tu Chromium no está en
 | smoke13.mjs | remakes con mismo título (Desafío total), tarjeta de watchlist, décadas rotando |
 | smoke14.mjs | trending p1 agotado: el deck pasa páginas y los clásicos no lo inundan |
 | smoke15.mjs | saludo en dos líneas y swipe ⬇ «otro día» (aparta sin guardar, reaparece) |
-| smoke16.mjs | tráiler + reparto/dirección en la ficha, nota al terminar, «Sesión golfa» |
+| smoke16.mjs | tráiler en visor embebido + reparto/dirección, nota al terminar, «Sesión golfa» |
