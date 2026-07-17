@@ -30,6 +30,26 @@ Cada vez que cambies la app web: `npm run android` y vuelve a compilar en Androi
 - Nombre, icono adaptativo (butaca sobre ámbar) y splash (sala a oscuras) ya están
   aplicados en `android/app/src/main/res/`.
 
+## Clave TMDB integrada (recomendado para publicar)
+
+Para que la gente no tenga que conseguirse su propia API key (la app funciona
+entera sin configurar nada), compila el build de la tienda con TU clave dentro:
+
+```bash
+BUTACA_TMDB_KEY=tu_clave_aqui npm run android          # macOS / Linux
+set "BUTACA_TMDB_KEY=tu_clave_aqui" && npm run android # Windows (cmd)
+```
+
+- La clave viaja dentro del APK/AAB; el campo de Stats queda como opción para
+  quien prefiera usar la suya (la del usuario siempre manda sobre la integrada).
+- ⚠️ Ese build también regenera `index.html` y `www/`: **no hagas commit de esos
+  archivos con la clave dentro** (el repo es público). Tras compilar el AAB,
+  ejecuta `npm run build` a secas para dejarlos limpios antes de subir nada.
+- Riesgo asumible: cualquier clave dentro de un APK es extraíble, pero la de
+  TMDB es gratuita y se puede revocar/regenerar en themoviedb.org si se abusa.
+- Sin la variable, el build queda como siempre (cada usuario con su clave o
+  catálogo local sin clave) — es lo que usa la web de GitHub Pages.
+
 ## Subirla a Play Store
 
 1. En Android Studio: **Build → Generate Signed App Bundle** → crea un *keystore* nuevo
