@@ -38,7 +38,7 @@ await ctx.route(/(static\.tvmaze\.com|is1\.mzstatic\.com|image\.tmdb\.org)/, (r)
 const page = await ctx.newPage();
 page.on("pageerror", (e) => errors.push(e.message));
 page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
-const url = "file://" + process.cwd() + "/dist/index.html";
+const url = "file://" + process.cwd() + "/dist/index.html?demo";
 
 await page.goto(url);
 await page.waitForTimeout(1500);

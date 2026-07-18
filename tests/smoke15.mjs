@@ -27,7 +27,7 @@ page.on("pageerror", (e) => errors.push(e.message));
 const ok = (label, cond) => console.log(`${cond ? "✓" : "✗ FALLO"} ${label}`);
 const topTitle = () => page.getByRole("dialog").locator("p.text-xl").first().textContent();
 
-await page.goto("file://" + process.cwd() + "/dist/index.html");
+await page.goto("file://" + process.cwd() + "/dist/index.html?demo");
 await page.waitForTimeout(700);
 
 // 1. saludo en dos líneas controladas

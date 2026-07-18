@@ -18,7 +18,7 @@ const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
 const ok = (label, cond) => console.log(`${cond ? "✓" : "✗ FALLO"} ${label}`);
 
-await page.goto("file://" + process.cwd() + "/dist/index.html");
+await page.goto("file://" + process.cwd() + "/dist/index.html?demo");
 await page.waitForTimeout(700);
 
 // 1. preview desde el catálogo local: tocar resultado → ficha con sinopsis y capítulos

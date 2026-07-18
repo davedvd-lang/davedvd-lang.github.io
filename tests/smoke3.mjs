@@ -21,7 +21,7 @@ const errors = [];
 const page = await ctx.newPage();
 page.on("pageerror", (e) => errors.push(e.message));
 
-await page.goto("http://localhost:8712/");
+await page.goto("http://localhost:8712/?demo");
 await page.waitForTimeout(1200);
 
 // service worker + manifest

@@ -6,7 +6,7 @@ const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
 page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
 
-await page.goto("file://" + process.cwd() + "/dist/index.html");
+await page.goto("file://" + process.cwd() + "/dist/index.html?demo");
 await page.waitForTimeout(600);
 await page.screenshot({ path: "shot-home.png" });
 

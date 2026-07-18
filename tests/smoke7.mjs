@@ -23,7 +23,7 @@ const page = await ctx.newPage();
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
 const ok = (label, cond) => console.log(`${cond ? "✓" : "✗ FALLO"} ${label}`);
-const URL = "file://" + process.cwd() + "/dist/index.html";
+const URL = "file://" + process.cwd() + "/dist/index.html?demo";
 
 await page.goto(URL);
 await page.waitForTimeout(700);

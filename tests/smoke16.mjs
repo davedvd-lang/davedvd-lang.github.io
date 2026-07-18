@@ -44,7 +44,7 @@ const ok = (label, cond) => console.log(`${cond ? "✓" : "✗ FALLO"} ${label}`
 
 // 1. saludo de madrugada: a la 1 AM nada de «buenos días»
 await page.clock.setFixedTime(new Date("2026-07-17T01:00:00"));
-await page.goto("file://" + process.cwd() + "/dist/index.html");
+await page.goto("file://" + process.cwd() + "/dist/index.html?demo");
 await page.waitForTimeout(700);
 ok("saludo «Sesión golfa» a la 1 AM", (await page.getByText("Sesión golfa 🍿").count()) > 0);
 await page.screenshot({ path: "shot16-golfa.png" });

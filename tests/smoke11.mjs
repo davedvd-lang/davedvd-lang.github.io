@@ -40,7 +40,7 @@ page.on("pageerror", (e) => errors.push(e.message));
 const ok = (label, cond) => console.log(`${cond ? "✓" : "✗ FALLO"} ${label}`);
 const topTitle = () => page.getByRole("dialog").locator("p.text-xl").first().textContent();
 
-await page.goto("file://" + process.cwd() + "/dist/index.html");
+await page.goto("file://" + process.cwd() + "/dist/index.html?demo");
 await page.waitForTimeout(700);
 await page.getByRole("button", { name: "Stats" }).click();
 await page.getByPlaceholder("Pega aquí tu API key…").fill("k");
