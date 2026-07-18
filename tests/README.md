@@ -1,7 +1,9 @@
 # Tests de humo (Playwright)
 
-Se ejecutan contra el build local (`dist/index.html`), con las APIs externas
-simuladas mediante `page.route` donde hace falta — no necesitan red ni claves.
+Se ejecutan contra el build local (`dist/index.html?demo` — el parámetro siembra
+la videoteca de ejemplo; sin él, la app arranca vacía como para un usuario
+nuevo), con las APIs externas simuladas mediante `page.route` donde hace falta —
+no necesitan red ni claves.
 
 ```bash
 npm run build
@@ -30,3 +32,4 @@ ajusta `executablePath` al principio de cada script si tu Chromium no está en
 | smoke14.mjs | trending p1 agotado: el deck pasa páginas y los clásicos no lo inundan |
 | smoke15.mjs | saludo en dos líneas y swipe ⬇ «otro día» (aparta sin guardar, reaparece) |
 | smoke16.mjs | tráiler en visor embebido + reparto/dirección, nota al terminar, «Sesión golfa» |
+| smoke17.mjs | estreno en blanco: bienvenida, sin datos de ejemplo, borrar todo, modo ?demo |

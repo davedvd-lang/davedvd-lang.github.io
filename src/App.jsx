@@ -188,6 +188,36 @@ function Stars({ value = 0, onChange }) {
   );
 }
 
+/* ---------- bienvenida (solo el primer arranque) ---------- */
+
+const WELCOME_KEY = "butaca:welcome:v1";
+
+function Welcome({ onEnter }) {
+  return (
+    <div className="fixed inset-0 z-[60] flex flex-col items-center justify-center gap-6 bg-ink px-8 text-center" role="dialog" aria-modal="true">
+      <p className="text-6xl" aria-hidden>🍿</p>
+      <div>
+        <p className="flex items-center justify-center gap-2 text-sm font-semibold tracking-widest text-brass">BUTACA</p>
+        <h1 className="mt-2 text-[26px] font-extrabold leading-tight tracking-tight text-snow">
+          Gracias por hacerle<br />un hueco a Butaca 🧡
+        </h1>
+        <p className="mt-3 text-sm leading-relaxed text-fog">Tu diario personal de series y películas.</p>
+      </div>
+      <ul className="space-y-3 text-left text-sm leading-relaxed text-fog">
+        <li className="flex gap-2.5"><span aria-hidden>🎬</span> Apunta lo que ves: capítulos, notas y revisionados en un toque.</li>
+        <li className="flex gap-2.5"><span aria-hidden>🔥</span> ¿Sin plan? Abre <span className="font-bold text-snow">Descubrir</span> y desliza como en las apps de citas.</li>
+        <li className="flex gap-2.5"><span aria-hidden>🔒</span> Todo se guarda <span className="font-bold text-snow">solo en tu dispositivo</span> — sin cuentas ni rastreos.</li>
+      </ul>
+      <button
+        onClick={onEnter}
+        className="rounded-full bg-brass px-8 py-3.5 text-base font-bold text-ink shadow-lg shadow-brass/30 transition-transform active:scale-95"
+      >
+        Entrar a la sala 🎟️
+      </button>
+    </div>
+  );
+}
+
 /* ---------- pantalla: Hoy (dashboard) ---------- */
 
 function WatchingCard({ item, onAdvance, onOpen }) {
@@ -285,7 +315,16 @@ function HomeView({ lib, streak, pausedNews, onAdvance, onStart, onOpen, onAdd, 
           <h2 className="text-lg font-bold text-snow">Sigues viendo</h2>
           <span className="text-xs font-medium text-fog">un toque = capítulo visto</span>
         </div>
-        {watching.length === 0 ? (
+        {lib.length === 0 ? (
+          <button onClick={onAdd} className="mx-5 block w-[calc(100%-2.5rem)] rounded-3xl border border-dashed border-brass/40 bg-brass/5 p-6 text-center">
+            <span className="block text-3xl">🍿</span>
+            <span className="mt-2 block text-sm font-bold text-snow">Tu butaca está lista</span>
+            <span className="mt-1 block text-xs leading-relaxed text-fog">
+              Añade tu primera peli o serie con el botón <span className="font-bold text-brass">[+]</span>,
+              o baja a 🔥 Descubrir y desliza.
+            </span>
+          </button>
+        ) : watching.length === 0 ? (
           <div className="mx-5 rounded-3xl border border-dashed border-line p-6 text-center text-sm text-fog">
             Nada en curso. Elige algo de tu lista 👇
           </div>
@@ -1316,7 +1355,7 @@ function StatsView({ lib, activity, tmdbKey, onSaveKey, onReset, onExport, onImp
         onClick={onReset}
         className="mx-auto mt-6 flex items-center gap-1.5 text-xs font-semibold text-fog/70 transition-colors hover:text-red-400"
       >
-        <RotateCcw size={13} /> Restablecer datos de ejemplo
+        <RotateCcw size={13} /> Borrar toda la videoteca
       </button>
 
       <p className="mt-4 text-center text-xs text-fog/70">
@@ -1340,7 +1379,10 @@ function loadLibrary() {
       return saved;
     }
   } catch { /* datos corruptos: arrancamos de cero */ }
-  return seedLibrary;
+  // videoteca nueva = vacía (los datos de ejemplo confundían: parecían tuyos).
+  // ?demo la siembra igual que antes — lo usan los tests y las demos.
+  try { if (location.search.includes("demo")) return seedLibrary; } catch { /* SSR/tests */ }
+  return [];
 }
 
 export default function App() {
@@ -1358,6 +1400,10 @@ export default function App() {
   const [updates, setUpdates] = useState({}); // series con episodios nuevos en TMDB
   const [extras, setExtras] = useState({}); // por `type:tmdbId`: plataformas, reparto, dirección, tráiler
   const [deck, setDeck] = useState(null); // Descubrir: { cards, page } o null
+  // bienvenida: solo para estrenos de verdad (sin marca previa y videoteca vacía)
+  const [welcome, setWelcome] = useState(() => {
+    try { return !localStorage.getItem(WELCOME_KEY); } catch { return false; }
+  });
   const [deckQuota, setDeckQuota] = useState(loadDeckQuota); // {start, count} de la tanda (cierre 12 h)
   const deckLoading = useRef(false);
   const toastTimer = useRef(null);
@@ -1717,9 +1763,10 @@ export default function App() {
   };
 
   const resetData = () => {
+    if (!window.confirm("¿Borrar toda tu videoteca de este dispositivo? No hay vuelta atrás (exporta antes una copia si dudas).")) return;
     try { localStorage.removeItem(LIB_KEY); } catch { /* nada */ }
-    setLib(seedLibrary);
-    say("Datos de ejemplo restablecidos");
+    setLib([]);
+    say("Videoteca vacía — empezamos de cero 🍿");
   };
 
   const exportData = () => {
@@ -1833,6 +1880,13 @@ export default function App() {
           onRewatch={() => {}}
           onRemove={() => {}}
         />
+      )}
+
+      {welcome && lib.length === 0 && (
+        <Welcome onEnter={() => {
+          try { localStorage.setItem(WELCOME_KEY, "1"); } catch { /* nada */ }
+          setWelcome(false);
+        }} />
       )}
 
       {toast && (

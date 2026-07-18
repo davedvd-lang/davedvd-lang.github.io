@@ -7,7 +7,7 @@ page.on("pageerror", (e) => errors.push(e.message));
 page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
 const ok = (label, cond) => console.log(`${cond ? "✓" : "✗ FALLO"} ${label}`);
 
-await page.goto("file://" + process.cwd() + "/dist/index.html");
+await page.goto("file://" + process.cwd() + "/dist/index.html?demo");
 await page.waitForTimeout(700);
 
 // 1. atajo de pausadas en el dashboard → pestaña En pausa de Series
