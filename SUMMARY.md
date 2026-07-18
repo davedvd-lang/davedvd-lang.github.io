@@ -74,6 +74,13 @@ también el proyecto Android) → `node tests/smoke8.mjs` → commit + push a `m
 5. **Ideas encoladas** (no empezadas): desglose «este año/total» más rico en Stats;
    notificaciones de nueva temporada como push nativo; filtro por idioma/país en
    Descubrir (tandas temáticas); sincronización entre móviles vía Drive del usuario (fase 2).
+   **Fase 3 — reseñas entre usuarios de Butaca** (acordado con el usuario, 2026-07-18):
+   requiere backend + identidades. Receta: IA moderadora automática ANTES de publicar
+   (modelo ligero, coste céntimos), diseño de reseñas sin conversación (sin hilos ni
+   respuestas ni DMs, seudónimo, límite de caracteres), candado anti-spoiler «solo
+   visibles si la has visto», y botón de denuncia con revisión humana (volumen mínimo).
+   Alternativa ligera descartada de momento: reseñas de TMDB en la ficha (read-only,
+   mayormente en inglés).
 
 ## Convenciones acordadas con el usuario
 
