@@ -188,6 +188,27 @@ export async function fetchExtras(item, apiKey) {
   return data;
 }
 
+/* ---------- fechas de emisión por episodio (toque largo en la rejilla) ---------- */
+
+const SEASON_DATES_CACHE = "butaca:seasondates:v1";
+
+/** Fechas de emisión de los episodios de una temporada. Caché de 24 h (los
+    episodios futuros pueden cambiar de fecha). */
+export async function fetchSeasonDates(item, season, apiKey) {
+  if (!apiKey || !item.tmdbId) return [];
+  let cache;
+  try { cache = JSON.parse(localStorage.getItem(SEASON_DATES_CACHE)) || {}; } catch { cache = {}; }
+  const k = `${item.tmdbId}:${season}`;
+  const hit = cache[k];
+  if (hit && Date.now() - hit.ts < 864e5) return hit.eps;
+  const q = new URLSearchParams({ api_key: apiKey, language: "es-ES" });
+  const j = await getJSON(`https://api.themoviedb.org/3/tv/${item.tmdbId}/season/${season}?${q}`);
+  const eps = (j.episodes || []).map((e) => ({ ep: e.episode_number, air: e.air_date || "" }));
+  cache[k] = { ts: Date.now(), eps };
+  try { localStorage.setItem(SEASON_DATES_CACHE, JSON.stringify(cache)); } catch { /* sin hueco */ }
+  return eps;
+}
+
 /* ---------- aviso de nueva temporada (series en pausa / en curso) ---------- */
 
 const TVCHECK = "butaca:tvcheck:v1";
