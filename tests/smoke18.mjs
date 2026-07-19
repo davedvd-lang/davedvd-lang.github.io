@@ -79,8 +79,13 @@ await page.mouse.down();
 await page.waitForTimeout(650);
 await page.mouse.up();
 await page.waitForTimeout(400);
-ok("toque largo: «se emitió el 28 de agosto de 2022»", (await page.getByText("🗓️ T1·E2 se emitió el 28 de agosto de 2022").count()) > 0);
+const badge = page.getByText("🗓️ T1·E2 se emitió el 28 de agosto de 2022");
+ok("toque largo: «se emitió el 28 de agosto de 2022»", (await badge.count()) > 0);
+const badgeBox = await badge.boundingBox();
+ok("la fecha sale ARRIBA, sobre el póster (no bajo el dedo)", badgeBox && badgeBox.y < 200);
 ok("el toque largo NO marcó el episodio", (await page.getByText("0/3 capítulos", { exact: false }).count()) > 0);
+await page.waitForTimeout(3500);
+ok("sigue visible pasados 3,5 s (antes moría a los 2,2 s)", (await badge.count()) > 0);
 await page.screenshot({ path: "shot18-fecha-ep.png" });
 
 const ep3 = page.getByRole("button", { name: "Episodio 3 temporada 1" });
@@ -91,6 +96,7 @@ await page.waitForTimeout(650);
 await page.mouse.up();
 await page.waitForTimeout(400);
 ok("episodio futuro: «sale el 1 de junio de 2027»", (await page.getByText("🗓️ T1·E3 sale el 1 de junio de 2027").count()) > 0);
+ok("y sustituye a la fecha anterior", (await page.getByText("🗓️ T1·E2 se emitió", { exact: false }).count()) === 0);
 
 // toque corto normal: adopta la serie con E2 como último visto
 await ep2.click();
