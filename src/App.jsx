@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { seedLibrary, catalog } from "./data.js";
 import {
-  checkSeasonUpdates, enrichPosters, fetchClassics, fetchExtras, fetchSeasonDates, fetchTrending, hydrateTmdbItem, loadPosterCache,
+  checkSeasonUpdates, enrichPosters, fetchClassics, fetchExtras, fetchSeasonDates, fetchTrending, hasBuiltInKey, hasOwnTmdbKey, hydrateTmdbItem, loadPosterCache,
   loadTmdbKey, posterKey, saveTmdbKey, searchTmdb,
 } from "./enrich.js";
 import { shareCard } from "./share.js";
@@ -1240,6 +1240,11 @@ function TabBar({ tab, onTab, onAdd }) {
 function StatsView({ lib, activity, tmdbKey, onSaveKey, onReset, onExport, onImport }) {
   const [draft, setDraft] = useState(tmdbKey);
   const [editKey, setEditKey] = useState(!tmdbKey); // con clave puesta, el bloque se pliega
+  // Con clave integrada en el build no hay nada que configurar: se oculta todo el bloque.
+  // Válvula de escape: tocar la línea de atribución lo revela, por si la clave de serie
+  // deja de funcionar algún día y alguien necesita poner la suya.
+  const [revealKeyBlock, setRevealKeyBlock] = useState(false);
+  const ocultarBloqueClave = hasBuiltInKey && !hasOwnTmdbKey() && !revealKeyBlock;
   const fileRef = useRef(null);
   const streak = streakOf(activity);
   const year = new Date().getFullYear();
@@ -1298,7 +1303,7 @@ function StatsView({ lib, activity, tmdbKey, onSaveKey, onReset, onExport, onImp
         </section>
       )}
 
-      {tmdbKey && !editKey ? (
+      {ocultarBloqueClave ? null : tmdbKey && !editKey ? (
         <div className="mt-6 flex items-center justify-between gap-3 rounded-3xl bg-panel p-4 ring-1 ring-line">
           <p className="flex min-w-0 items-center gap-2 text-sm font-bold text-snow">
             <Globe size={15} className="shrink-0 text-brass" /> Búsqueda online
@@ -1357,8 +1362,12 @@ function StatsView({ lib, activity, tmdbKey, onSaveKey, onReset, onExport, onImp
         </div>
       )}
 
-      {/* atribución obligatoria según las condiciones de uso de la API de TMDB */}
-      <p className="mt-2 px-1 text-[10px] leading-relaxed text-fog/60">
+      {/* Atribución obligatoria según las condiciones de uso de la API de TMDB.
+          Además hace de acceso discreto a la configuración de la clave cuando está oculta. */}
+      <p
+        onClick={() => setRevealKeyBlock(true)}
+        className="mt-2 px-1 text-[10px] leading-relaxed text-fog/60"
+      >
         This product uses the TMDB API but is not endorsed or certified by TMDB.
       </p>
 

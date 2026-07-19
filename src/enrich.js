@@ -24,6 +24,15 @@ function savePosterCache(cache) {
 // nada; si el usuario guarda la suya en Stats, la suya manda.
 const BUILT_IN_KEY = typeof __BUTACA_TMDB_KEY__ !== "undefined" ? __BUTACA_TMDB_KEY__ : "";
 
+// ¿El build trae clave de serie? (APK/AAB de la tienda). Si es así, la app funciona
+// desde el primer momento y no hay nada que configurar: la UI de la clave se oculta.
+export const hasBuiltInKey = !!BUILT_IN_KEY;
+
+/** ¿El usuario ha guardado una clave propia? (manda sobre la integrada) */
+export function hasOwnTmdbKey() {
+  try { return !!localStorage.getItem(TMDB_KEY); } catch { return false; }
+}
+
 export function loadTmdbKey() {
   try { return localStorage.getItem(TMDB_KEY) || BUILT_IN_KEY; } catch { return BUILT_IN_KEY; }
 }
