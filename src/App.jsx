@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { seedLibrary, catalog } from "./data.js";
 import {
-  checkSeasonUpdates, enrichPosters, fetchClassics, fetchExtras, fetchTrending, hydrateTmdbItem, loadPosterCache,
+  checkSeasonUpdates, enrichPosters, fetchClassics, fetchExtras, fetchSeasonDates, fetchTrending, hydrateTmdbItem, loadPosterCache,
   loadTmdbKey, posterKey, saveTmdbKey, searchTmdb,
 } from "./enrich.js";
 import { shareCard } from "./share.js";
@@ -55,6 +55,13 @@ function seriesProgress(item) {
 }
 
 const epLabel = (n) => (n ? `T${n.season}·E${n.ep}` : "");
+
+/** «12 de marzo de 2026» a partir de "2026-03-12" (o null si no hay fecha). */
+const longDate = (iso) => {
+  const t = Date.parse(iso);
+  return Number.isNaN(t) ? null
+    : new Date(t).toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" });
+};
 
 /** Último episodio visto ("T1·E8") o null si no ha empezado. */
 function lastSeenLabel(item) {
@@ -553,12 +560,20 @@ function LibraryView({ lib, type, tab, updates, onTab, onOpen, onAdvance, onResu
 
 /* ---------- ficha (bottom sheet) ---------- */
 
-function DetailSheet({ item, preview = false, extras, update, onApplyUpdate, onNote, onShare, onClose, onSetStatus, onSetEpisode, onAdvance, onRate, onRewatch, onRemove }) {
+function DetailSheet({ item, preview = false, extras, update, onApplyUpdate, onNote, onShare, onClose, onSetStatus, onSetEpisode, onEpisodeDate, onAdvance, onRate, onRewatch, onRemove }) {
   const isSeries = item.type === "series";
   const prog = isSeries ? seriesProgress(item) : null;
   const left = lastSeenLabel(item);
   const [showTrailer, setShowTrailer] = useState(false);
   const trailerKey = extras?.trailer?.match(/[?&]v=([\w-]+)/)?.[1];
+  // toque largo sobre un episodio = fecha de emisión (el corto marca visto)
+  const lpTimer = useRef(null);
+  const lpFired = useRef(false);
+  const pressEp = (si, n) => {
+    lpFired.current = false;
+    lpTimer.current = setTimeout(() => { lpFired.current = true; onEpisodeDate?.(item, si, n); }, 500);
+  };
+  const releaseEp = () => clearTimeout(lpTimer.current);
 
   return (
     <div className="fixed inset-0 z-40 flex items-end justify-center" role="dialog" aria-modal="true">
@@ -585,6 +600,18 @@ function DetailSheet({ item, preview = false, extras, update, onApplyUpdate, onN
             {item.year} · {item.genre}{item.runtime ? ` · ${item.runtime} min` : ""}
             {item.tmdbRating ? <span className="font-semibold text-brass2"> · ★ {item.tmdbRating} en TMDB</span> : ""}
           </p>
+
+          {item.released && longDate(item.released) && (
+            Date.parse(item.released) > Date.now() ? (
+              <p className="flex items-center gap-1.5 text-xs font-semibold text-brass2">
+                <CalendarDays size={13} /> Se estrena el {longDate(item.released)}
+              </p>
+            ) : (
+              <p className="flex items-center gap-1.5 text-xs text-fog">
+                <CalendarDays size={13} className="text-brass" /> Estreno: {longDate(item.released)}
+              </p>
+            )
+          )}
 
           {item.synopsis && (
             <p className="text-sm leading-relaxed text-fog">{item.synopsis}</p>
@@ -777,7 +804,7 @@ function DetailSheet({ item, preview = false, extras, update, onApplyUpdate, onN
               <div>
                 <div className="mb-2 flex items-baseline justify-between">
                   <h3 className="text-base font-bold text-snow">Temporadas</h3>
-                  <span className="text-xs text-fog">{prog.seen}/{prog.total} capítulos · toca el último visto</span>
+                  <span className="text-xs text-fog">{prog.seen}/{prog.total} capítulos · toca el último visto · mantén: fecha</span>
                 </div>
                 <div className="space-y-3">
                   {item.seasons.map((s, si) => (
@@ -795,9 +822,13 @@ function DetailSheet({ item, preview = false, extras, update, onApplyUpdate, onN
                           return (
                             <button
                               key={n}
-                              onClick={() => onSetEpisode(item, si, n)}
+                              onClick={() => { if (lpFired.current) { lpFired.current = false; return; } onSetEpisode(item, si, n); }}
+                              onPointerDown={() => pressEp(si, n)}
+                              onPointerUp={releaseEp}
+                              onPointerLeave={releaseEp}
+                              onContextMenu={(e) => e.preventDefault()}
                               aria-label={`Episodio ${n} temporada ${si + 1}`}
-                              className={`flex h-8 w-8 items-center justify-center rounded-lg text-[11px] font-bold transition-all duration-150 active:scale-90 ${
+                              className={`flex h-8 w-8 select-none items-center justify-center rounded-lg text-[11px] font-bold transition-all duration-150 active:scale-90 ${
                                 seen
                                   ? "bg-brass text-ink shadow-sm shadow-brass/30"
                                   : "bg-white/5 text-fog ring-1 ring-line hover:ring-brass/40"
@@ -1622,6 +1653,20 @@ export default function App() {
     });
   };
 
+  /* toque largo sobre un episodio: ¿cuándo se emitió (o cuándo sale)? */
+  const showEpisodeDate = async (item, seasonIdx, ep) => {
+    const label = `T${seasonIdx + 1}·E${ep}`;
+    if (!item.tmdbId || !tmdbKey) { say(`${label} — sin fecha (necesita TMDB)`); return; }
+    try {
+      const eps = await fetchSeasonDates(item, seasonIdx + 1, tmdbKey);
+      const fmt = longDate(eps.find((e) => e.ep === ep)?.air);
+      if (!fmt) { say(`${label} — aún sin fecha de emisión`); return; }
+      say(Date.parse(eps.find((e) => e.ep === ep).air) > Date.now()
+        ? `🗓️ ${label} sale el ${fmt}`
+        : `🗓️ ${label} se emitió el ${fmt}`);
+    } catch { say("Sin conexión para consultar la fecha"); }
+  };
+
   /* ruleta «¿qué veo hoy?»: un candidato al azar de tu «Por ver» */
   const surprise = () => {
     const pool = lib.filter((i) => i.status === "watchlist");
@@ -1861,6 +1906,7 @@ export default function App() {
           onClose={() => setDetailId(null)}
           onSetStatus={setStatus}
           onSetEpisode={setEpisode}
+          onEpisodeDate={showEpisodeDate}
           onAdvance={advance}
           onRate={(it, n) => patch(it.id, (i) => ({ ...i, rating: n }))}
           onRewatch={rewatch}
@@ -1875,6 +1921,7 @@ export default function App() {
           onClose={() => setPreview(null)}
           onSetStatus={(it, s) => adopt(it, s)}
           onSetEpisode={adoptEpisode}
+          onEpisodeDate={showEpisodeDate}
           onAdvance={() => {}}
           onRate={() => {}}
           onRewatch={() => {}}
