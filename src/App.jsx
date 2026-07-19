@@ -566,12 +566,23 @@ function DetailSheet({ item, preview = false, extras, update, onApplyUpdate, onN
   const left = lastSeenLabel(item);
   const [showTrailer, setShowTrailer] = useState(false);
   const trailerKey = extras?.trailer?.match(/[?&]v=([\w-]+)/)?.[1];
-  // toque largo sobre un episodio = fecha de emisión (el corto marca visto)
+  // toque largo sobre un episodio = fecha de emisión (el corto marca visto).
+  // La fecha se muestra ARRIBA, sobre el póster: abajo el dedo la tapa.
   const lpTimer = useRef(null);
   const lpFired = useRef(false);
+  const [epDate, setEpDate] = useState(null); // {msg, key}
+  const epDateTimer = useRef(null);
   const pressEp = (si, n) => {
     lpFired.current = false;
-    lpTimer.current = setTimeout(() => { lpFired.current = true; onEpisodeDate?.(item, si, n); }, 500);
+    lpTimer.current = setTimeout(() => {
+      lpFired.current = true;
+      Promise.resolve(onEpisodeDate?.(item, si, n)).then((msg) => {
+        if (!msg) return;
+        clearTimeout(epDateTimer.current);
+        setEpDate({ msg, key: Date.now() });
+        epDateTimer.current = setTimeout(() => setEpDate(null), 7000);
+      });
+    }, 500);
   };
   const releaseEp = () => clearTimeout(lpTimer.current);
 
@@ -592,6 +603,11 @@ function DetailSheet({ item, preview = false, extras, update, onApplyUpdate, onN
           <div className="absolute inset-x-5 bottom-2">
             <h2 className="text-2xl font-extrabold tracking-tight text-snow drop-shadow">{item.title}</h2>
           </div>
+          {epDate && (
+            <p key={epDate.key} className="animate-fadein absolute left-4 right-16 top-4 rounded-2xl bg-black/75 px-3.5 py-2.5 text-xs font-bold leading-snug text-snow ring-1 ring-brass/40 backdrop-blur">
+              {epDate.msg}
+            </p>
+          )}
         </div>
 
         <div className="space-y-5 px-5 pb-8 pt-3">
@@ -1653,18 +1669,20 @@ export default function App() {
     });
   };
 
-  /* toque largo sobre un episodio: ¿cuándo se emitió (o cuándo sale)? */
+  /* toque largo sobre un episodio: ¿cuándo se emitió (o cuándo sale)?
+     Devuelve el mensaje — la ficha lo muestra arriba, sobre el póster. */
   const showEpisodeDate = async (item, seasonIdx, ep) => {
     const label = `T${seasonIdx + 1}·E${ep}`;
-    if (!item.tmdbId || !tmdbKey) { say(`${label} — sin fecha (necesita TMDB)`); return; }
+    if (!item.tmdbId || !tmdbKey) return `${label} — sin fecha (necesita TMDB)`;
     try {
       const eps = await fetchSeasonDates(item, seasonIdx + 1, tmdbKey);
-      const fmt = longDate(eps.find((e) => e.ep === ep)?.air);
-      if (!fmt) { say(`${label} — aún sin fecha de emisión`); return; }
-      say(Date.parse(eps.find((e) => e.ep === ep).air) > Date.now()
+      const air = eps.find((e) => e.ep === ep)?.air;
+      const fmt = longDate(air);
+      if (!fmt) return `${label} — aún sin fecha de emisión`;
+      return Date.parse(air) > Date.now()
         ? `🗓️ ${label} sale el ${fmt}`
-        : `🗓️ ${label} se emitió el ${fmt}`);
-    } catch { say("Sin conexión para consultar la fecha"); }
+        : `🗓️ ${label} se emitió el ${fmt}`;
+    } catch { return "Sin conexión para consultar la fecha"; }
   };
 
   /* ruleta «¿qué veo hoy?»: un candidato al azar de tu «Por ver» */
