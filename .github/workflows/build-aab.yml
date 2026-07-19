@@ -25,7 +25,12 @@ jobs:
           distribution: temurin
           java-version: 21
 
+      # BUTACA_TMDB_KEY integra la clave en el bundle para que la app funcione
+      # sin que el usuario tenga que configurar nada. Solo afecta a www/ (el AAB),
+      # no al index.html que se publica en GitHub Pages.
       - name: Instalar dependencias y compilar web + Android
+        env:
+          BUTACA_TMDB_KEY: ${{ secrets.BUTACA_TMDB_KEY }}
         run: |
           npm install
           npm run android
