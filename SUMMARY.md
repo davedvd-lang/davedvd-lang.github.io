@@ -84,6 +84,31 @@ también el proyecto Android) → `node tests/smoke8.mjs` → commit + push a `m
    Alternativa ligera descartada de momento: reseñas de TMDB en la ficha (read-only,
    mayormente en inglés).
 
+   **Fase 3 — decisiones y requisitos de Play Store (acordado 2026-07-19):**
+   - **La cuenta es OPCIONAL.** Local-first por defecto (como ahora); quien quiera
+     sincronizar entre móviles o participar en las medias de la comunidad, se registra.
+     Esto conserva el argumento de privacidad y hace la ficha de datos mucho más fácil
+     de defender ("opcional, solo si el usuario lo activa" vs "recojo datos de todos").
+   - **Seguridad de los datos hay que actualizarlo ANTES de publicar la versión con
+     cuentas**, no después. Tener declarado "no recojo datos" mientras se recogen
+     correos y reseñas es motivo de suspensión, no de aviso. Hoy está declarado
+     "no recoge ni comparte datos" — correcto para la versión actual.
+   - **La moderación por IA no basta para cumplir la política de UGC de Google.** Aunque
+     el filtro acierte al 100%, exigen mecanismos visibles para el usuario: botón de
+     denunciar en cada reseña, posibilidad de bloquear a otro usuario, y unos términos
+     de uso publicados. Es estructural, no depende del volumen ni del "buen rollo".
+     Diseñarlo desde el principio; meterlo después es rehacer pantallas.
+   - **Con cuentas, Google obliga a borrado de cuenta** desde dentro de la app *y* desde
+     una web pública, con URL declarada en la ficha. Requisito duro.
+   - La clasificación de contenido cambia: "¿permite intercambiar contenido con otros
+     usuarios?" pasa a Sí, y hay que rehacer el cuestionario IARC.
+   - **Preparar el modelo de datos ya**: si cada título local lleva un `id` estable y un
+     `updatedAt` por elemento, la sincronización luego es casi trivial. Retrofitear sync
+     sobre un esquema sin eso es doloroso. Revisar `src/data.js` antes de la fase 3.
+   - Lenguaje: evitar absolutos tipo "sin cuentas / ninguno" en textos públicos, porque
+     la fase 3 los desmiente y rompe la promesa a quien instaló por eso. Ya suavizado en
+     `privacy.html` y en la descripción de la ficha a "funciona sin cuenta".
+
 ## Convenciones acordadas con el usuario
 
 Idioma: todo en español. Tono cercano. Privacidad primero (nada sale del dispositivo).
