@@ -79,6 +79,8 @@ también el proyecto Android) → `node tests/smoke8.mjs` → commit + push a `m
    (modelo ligero, coste céntimos), diseño de reseñas sin conversación (sin hilos ni
    respuestas ni DMs, seudónimo, límite de caracteres), candado anti-spoiler «solo
    visibles si la has visto», y botón de denuncia con revisión humana (volumen mínimo).
+   Con las reseñas sale gratis la **nota media de la comunidad Butaca** por título
+   (misma tabla, un promedio) — mostrarla junto a la ★ de TMDB en la ficha.
    Alternativa ligera descartada de momento: reseñas de TMDB en la ficha (read-only,
    mayormente en inglés).
 
