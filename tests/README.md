@@ -34,3 +34,4 @@ ajusta `executablePath` al principio de cada script si tu Chromium no está en
 | smoke16.mjs | tráiler en visor embebido + reparto/dirección, nota al terminar, «Sesión golfa» |
 | smoke17.mjs | estreno en blanco: bienvenida, sin datos de ejemplo, borrar todo, modo ?demo |
 | smoke18.mjs | fecha de estreno en la ficha y toque largo en episodio = fecha de emisión |
+| smoke19.mjs | logo de TMDB (+ descargo) y JustWatch como enlaces de atribución |

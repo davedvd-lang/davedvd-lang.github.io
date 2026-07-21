@@ -61,10 +61,11 @@ también el proyecto Android) → `node tests/smoke8.mjs` → commit + push a `m
      `@capacitor/filesystem` + `@capacitor/share`, ya previsto en ANDROID.md);
    - la tarjeta de **Compartir** con Web Share nativo.
 2. **Antes de subir a Play Store**:
-   - ⚠️ **PENDIENTE — logo de TMDB**: TMDB exige mostrar su **logo** además del texto
-     («This product uses the TMDB API…»). Ahora solo tenemos el texto en Stats. Compliant
-     = usar el archivo oficial (themoviedb.org/about/logos), no recrearlo a mano.
-     Colocarlo junto al disclaimer en Stats (e idealmente en el bloque «Búsqueda online»).
+   - ~~logo de TMDB además del texto~~ ✅ hecho (2026-07-21): `TmdbLogo` (SVG con el
+     degradado oficial verde→azul) + descargo, enlazado a themoviedb.org, en Stats; y
+     JustWatch como enlace en «En streaming». **Reproducción fiel** por no poder descargar
+     el archivo oficial en el sandbox — si se quiere el SVG/PNG exacto de
+     themoviedb.org/about/logos, sustituir el componente `TmdbLogo` (una línea).
    - ⚠️ **Icono/logo de la app**: el usuario prefiere la versión con la **butaca grande**
      (que llena más el círculo ámbar). Restaurarla cuando acabe el periodo de 15 días de
      testing cerrado de Play. Fuentes en `assets/icon-foreground.png` + `android/app/src/main/res/`.

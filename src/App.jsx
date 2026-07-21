@@ -195,6 +195,29 @@ function Stars({ value = 0, onChange }) {
   );
 }
 
+/* Logo de TMDB para la atribución obligatoria. Reproducción fiel con el degradado
+   oficial (verde→azul), sin distorsionar. Si se dispone del SVG/PNG oficial de
+   themoviedb.org/about/logos, basta sustituir este componente por él. */
+function TmdbLogo({ className = "" }) {
+  return (
+    <svg viewBox="0 0 60 14" className={className} role="img" aria-label="The Movie Database (TMDB)">
+      <defs>
+        <linearGradient id="tmdbGrad" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor="#90cea1" />
+          <stop offset="1" stopColor="#01b4e4" />
+        </linearGradient>
+      </defs>
+      <text
+        x="0" y="12" textLength="58" lengthAdjust="spacingAndGlyphs"
+        fontFamily="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif"
+        fontSize="14" fontWeight="800" fill="url(#tmdbGrad)"
+      >
+        TMDB
+      </text>
+    </svg>
+  );
+}
+
 /* ---------- bienvenida (solo el primer arranque) ---------- */
 
 const WELCOME_KEY = "butaca:welcome:v1";
@@ -650,7 +673,7 @@ function DetailSheet({ item, preview = false, extras, update, onApplyUpdate, onN
               {extras.providers.map((n) => (
                 <span key={n} className="rounded-full bg-panel2 px-2.5 py-1 font-semibold text-snow ring-1 ring-line">{n}</span>
               ))}
-              <span className="text-fog/50">· datos de JustWatch</span>
+              <a href="https://www.justwatch.com/" target="_blank" rel="noreferrer" className="text-fog/50 underline-offset-2 hover:underline">· datos de JustWatch</a>
             </p>
           )}
 
@@ -1362,14 +1385,19 @@ function StatsView({ lib, activity, tmdbKey, onSaveKey, onReset, onExport, onImp
         </div>
       )}
 
-      {/* Atribución obligatoria según las condiciones de uso de la API de TMDB.
-          Además hace de acceso discreto a la configuración de la clave cuando está oculta. */}
-      <p
-        onClick={() => setRevealKeyBlock(true)}
-        className="mt-2 px-1 text-[10px] leading-relaxed text-fog/60"
-      >
-        This product uses the TMDB API but is not endorsed or certified by TMDB.
-      </p>
+      {/* Atribución obligatoria de TMDB: su logo + el descargo (lo pide su norma de marca).
+          El texto sigue haciendo de acceso discreto a la config de clave cuando está oculta. */}
+      <div className="mt-3 flex flex-col items-start gap-1.5 px-1">
+        <a href="https://www.themoviedb.org/" target="_blank" rel="noreferrer" aria-label="The Movie Database">
+          <TmdbLogo className="h-4 w-auto" />
+        </a>
+        <p
+          onClick={() => setRevealKeyBlock(true)}
+          className="text-[10px] leading-relaxed text-fog/60"
+        >
+          This product uses the TMDB API but is not endorsed or certified by TMDB.
+        </p>
+      </div>
 
       <div className="mt-3 rounded-3xl bg-panel p-4 ring-1 ring-line">
         <p className="flex items-center gap-2 text-sm font-bold text-snow">
