@@ -61,7 +61,14 @@ también el proyecto Android) → `node tests/smoke8.mjs` → commit + push a `m
      `@capacitor/filesystem` + `@capacitor/share`, ya previsto en ANDROID.md);
    - la tarjeta de **Compartir** con Web Share nativo.
 2. **Antes de subir a Play Store**:
-   - ~~atribución TMDB obligatoria en Stats~~ ✅ hecha (2026-07-10);
+   - ⚠️ **PENDIENTE — logo de TMDB**: TMDB exige mostrar su **logo** además del texto
+     («This product uses the TMDB API…»). Ahora solo tenemos el texto en Stats. Compliant
+     = usar el archivo oficial (themoviedb.org/about/logos), no recrearlo a mano.
+     Colocarlo junto al disclaimer en Stats (e idealmente en el bloque «Búsqueda online»).
+   - ⚠️ **Icono/logo de la app**: el usuario prefiere la versión con la **butaca grande**
+     (que llena más el círculo ámbar). Restaurarla cuando acabe el periodo de 15 días de
+     testing cerrado de Play. Fuentes en `assets/icon-foreground.png` + `android/app/src/main/res/`.
+   - ~~atribución TMDB (texto) en Stats~~ ✅ hecha (2026-07-10) — falta el logo (ver arriba);
    - ~~clave TMDB integrada para el build de la tienda~~ ✅ hecha (2026-07-17):
      `BUTACA_TMDB_KEY=xxx npm run android` — la app funciona sin configurar nada;
      tras compilar el AAB, `npm run build` a secas para no subir la clave al repo.
