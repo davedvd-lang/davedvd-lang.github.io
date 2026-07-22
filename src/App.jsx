@@ -11,6 +11,7 @@ import {
   loadTmdbKey, posterKey, saveTmdbKey, searchTmdb,
 } from "./enrich.js";
 import { shareCard } from "./share.js";
+import { TMDB_LOGO, JUSTWATCH_LOGO } from "./brand.js";
 
 /* ---------- helpers de dominio ---------- */
 
@@ -198,24 +199,10 @@ function Stars({ value = 0, onChange }) {
 /* Logo de TMDB para la atribución obligatoria. Reproducción fiel con el degradado
    oficial (verde→azul), sin distorsionar. Si se dispone del SVG/PNG oficial de
    themoviedb.org/about/logos, basta sustituir este componente por él. */
+// Logo oficial de TMDB (data URI en brand.js). Su licencia exige el logo real,
+// no una recreación. No alterar colores ni proporción (guía de marca).
 function TmdbLogo({ className = "" }) {
-  return (
-    <svg viewBox="0 0 60 14" className={className} role="img" aria-label="The Movie Database (TMDB)">
-      <defs>
-        <linearGradient id="tmdbGrad" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stopColor="#90cea1" />
-          <stop offset="1" stopColor="#01b4e4" />
-        </linearGradient>
-      </defs>
-      <text
-        x="0" y="12" textLength="58" lengthAdjust="spacingAndGlyphs"
-        fontFamily="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif"
-        fontSize="14" fontWeight="800" fill="url(#tmdbGrad)"
-      >
-        TMDB
-      </text>
-    </svg>
-  );
+  return <img src={TMDB_LOGO} className={className} alt="The Movie Database (TMDB)" />;
 }
 
 /* ---------- bienvenida (solo el primer arranque) ---------- */
@@ -673,7 +660,10 @@ function DetailSheet({ item, preview = false, extras, update, onApplyUpdate, onN
               {extras.providers.map((n) => (
                 <span key={n} className="rounded-full bg-panel2 px-2.5 py-1 font-semibold text-snow ring-1 ring-line">{n}</span>
               ))}
-              <a href="https://www.justwatch.com/" target="_blank" rel="noreferrer" className="text-fog/50 underline-offset-2 hover:underline">· datos de JustWatch</a>
+              <a href="https://www.justwatch.com/" target="_blank" rel="noreferrer" className="ml-0.5 inline-flex items-center gap-1 text-fog/50">
+                <span>· datos de</span>
+                <img src={JUSTWATCH_LOGO} alt="JustWatch" className="h-3 w-auto" />
+              </a>
             </p>
           )}
 
