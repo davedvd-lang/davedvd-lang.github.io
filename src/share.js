@@ -1,4 +1,7 @@
-// Tarjeta «Acabo de verla» para compartir: canvas → Web Share (móvil) o PNG (descarga).
+// Tarjeta «Acabo de verla» para compartir: canvas → compartir nativo (app),
+// Web Share (móvil web) o PNG (descarga en escritorio).
+
+import { shareBlob } from "./native.js";
 
 function roundRect(ctx, x, y, w, h, r) {
   ctx.beginPath();
@@ -112,16 +115,7 @@ export async function shareCard(item, posterUrls = [], tagline = null, shareTitl
 
   const blob = await new Promise((res) => c.toBlob(res, "image/png"));
   const slug = item.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-  const file = new File([blob], `butaca-${slug}.png`, { type: "image/png" });
 
-  if (navigator.canShare?.({ files: [file] })) {
-    await navigator.share({ files: [file], title: shareTitle || `He visto ${item.title}` });
-    return "shared";
-  }
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = file.name;
-  a.click();
-  URL.revokeObjectURL(a.href);
-  return "downloaded";
+  // shareBlob decide la vía: nativa en la app, Web Share en móvil, descarga si no hay.
+  return shareBlob(blob, `butaca-${slug}.png`, shareTitle || `He visto ${item.title}`);
 }

@@ -12,6 +12,7 @@ import {
 } from "./enrich.js";
 import { shareCard } from "./share.js";
 import { TMDB_LOGO, JUSTWATCH_LOGO } from "./brand.js";
+import { saveBlob } from "./native.js";
 
 /* ---------- helpers de dominio ---------- */
 
@@ -1732,6 +1733,7 @@ export default function App() {
       const shareTitle = item.status === "watched" ? `He visto ${item.title}`
         : item.status === "watchlist" ? `Quiero ver ${item.title}` : `Estoy viendo ${item.title}`;
       const result = await shareCard(item, [item.img, posters[posterKey(item)]], tagline, shareTitle);
+      if (result === "cancelled") return; // cerró el menú de compartir: sin aviso
       say(result === "shared" ? "📤 Tarjeta compartida" : "🖼️ Tarjeta descargada");
     } catch {
       say("No se pudo crear la tarjeta");
@@ -1859,15 +1861,19 @@ export default function App() {
     say("Videoteca vacía — empezamos de cero 🍿");
   };
 
-  const exportData = () => {
+  const exportData = async () => {
     const payload = { app: "butaca", version: 1, exportedAt: new Date().toISOString(), library: lib };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `butaca-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(a.href);
-    say("💾 Copia exportada");
+    const name = `butaca-${new Date().toISOString().slice(0, 10)}.json`;
+    try {
+      // En la app de Android la descarga del navegador no funciona: saveBlob abre el
+      // menú del sistema para que elijas dónde guardarla (Drive, Archivos, correo…).
+      const how = await saveBlob(blob, name);
+      if (how === "cancelled") return;
+      say(how === "downloaded" ? "💾 Copia exportada" : "💾 Copia lista para guardar");
+    } catch {
+      say("No se pudo exportar la copia 😕");
+    }
   };
 
   const importData = async (file) => {
