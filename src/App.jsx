@@ -32,12 +32,18 @@ const STATUSES_FOR = {
 };
 
 /** ¿Son el mismo título? Con TMDB manda el id — hay remakes con el mismo nombre
-    (dos «Desafío total», dos «Hércules»…); sin id, título + tipo + año compatible. */
+    (dos «Masters of the Universe», dos «Desafío total», dos «Hércules»…).
+    Sin id comparamos título + tipo + año, y el año debe coincidir EXACTAMENTE.
+    Antes bastaba con que a uno le faltara el año para dar dos pelis por la misma:
+    TMDB devuelve `year: ""` cuando aún no hay fecha de estreno, así que el remake
+    de 2026 se confundía con el original de los 80 y las acciones (marcar vista,
+    puntuar) caían sobre la película equivocada. Ante la duda, mejor dos fichas
+    separadas —que se pueden borrar— que dos películas fundidas en una. */
 const sameItem = (a, b) =>
   a.type === b.type &&
   (a.tmdbId && b.tmdbId
     ? a.tmdbId === b.tmdbId
-    : a.title === b.title && (!a.year || !b.year || a.year === b.year));
+    : a.title === b.title && (a.year || "") === (b.year || ""));
 
 /** Clave estable para sets/mapas con la misma regla que sameItem. */
 const itemKey = (i) => `${i.type}:${i.tmdbId || `${i.title}·${i.year || ""}`}`;
