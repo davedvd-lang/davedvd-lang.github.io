@@ -315,7 +315,7 @@ function HomeView({ lib, streak, pausedNews, onAdvance, onStart, onOpen, onAdd, 
 
   return (
     <div className="space-y-7 pb-6">
-      <header className="px-5 pt-6">
+      <header className="px-5 pt-[max(env(safe-area-inset-top),24px)]">
         <p className="flex items-center gap-2 text-sm font-semibold text-brass">
           <Popcorn size={15} /> BUTACA
         </p>
@@ -443,7 +443,7 @@ function LibraryView({ lib, type, tab, updates, onTab, onOpen, onAdvance, onResu
   const isSeries = type === "series";
 
   return (
-    <div className="px-5 pb-6 pt-6">
+    <div className="px-5 pb-6 pt-[max(env(safe-area-inset-top),24px)]">
       <h1 className="flex items-center gap-2.5 text-[26px] font-extrabold tracking-tight text-snow">
         {isSeries ? <Tv className="text-brass" size={24} /> : <Clapperboard className="text-brass" size={24} />}
         {isSeries ? "Series" : "Películas"}
@@ -1104,7 +1104,7 @@ function DiscoverDeck({ cards, left, reopenIn, canLoadMore, busy, canUndo, onUnd
 
   return (
     <div className="fixed inset-0 z-40 flex flex-col bg-ink" role="dialog" aria-modal="true">
-      <div className="flex items-center justify-between px-5 pb-2 pt-6">
+      <div className="flex items-center justify-between px-5 pb-2 pt-[max(env(safe-area-inset-top),24px)]">
         <div>
           <h2 className="text-xl font-extrabold tracking-tight text-snow">Descubrir</h2>
           <p className="text-xs text-fog">desliza: 🥢 ni con un palo · ⬆ por ver · ✓ vista · ⬇ otro día</p>
@@ -1310,7 +1310,7 @@ function StatsView({ lib, activity, tmdbKey, onSaveKey, onReset, onExport, onImp
     { label: "Récord en un día", value: recordDay ? `${recordDay} caps` : "—", icon: Sparkles },
   ];
   return (
-    <div className="px-5 pb-6 pt-6">
+    <div className="px-5 pb-6 pt-[max(env(safe-area-inset-top),24px)]">
       <h1 className="flex items-center gap-2.5 text-[26px] font-extrabold tracking-tight text-snow">
         <Sparkles className="text-brass" size={24} /> Tu tiempo en pantalla
       </h1>
