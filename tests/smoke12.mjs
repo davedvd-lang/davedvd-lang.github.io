@@ -73,7 +73,8 @@ await page.getByRole("dialog").locator("div.touch-none").first().click({ positio
 await page.waitForTimeout(800);
 ok("bloque «En streaming» en la ficha", (await page.getByText("En streaming:").count()) > 0);
 ok("con las plataformas (Netflix, HBO Max)", (await page.getByText("Netflix").count()) > 0 && (await page.getByText("HBO Max").count()) > 0);
-ok("con la atribución a JustWatch", (await page.getByText("datos de JustWatch").count()) > 0);
+// la atribución pasó de texto plano al logo oficial enlazado (2026-07-22)
+ok("con la atribución a JustWatch", (await page.getByRole("link", { name: /JustWatch/ }).count()) > 0);
 await page.screenshot({ path: "shot12-streaming.png" });
 
 // 4. también en la ficha de un título ya en la videoteca (tras adoptarlo)

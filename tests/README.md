@@ -35,3 +35,5 @@ ajusta `executablePath` al principio de cada script si tu Chromium no está en
 | smoke17.mjs | estreno en blanco: bienvenida, sin datos de ejemplo, borrar todo, modo ?demo |
 | smoke18.mjs | fecha de estreno en la ficha y toque largo en episodio = fecha de emisión |
 | smoke19.mjs | logo de TMDB (+ descargo) y JustWatch como enlaces de atribución |
+| smoke20.mjs | dos pelis con el mismo título y distinto año son títulos distintos |
+| smoke21.mjs | Descubrir: «Deshacer» la última decisión y «Cargar más» que insiste solo |

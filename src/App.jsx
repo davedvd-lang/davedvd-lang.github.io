@@ -1064,7 +1064,7 @@ const SWIPE = {
   down: { status: null, label: "OTRO DÍA", emoji: "💤", color: "#60a5fa" },
 };
 
-function DiscoverDeck({ cards, left, reopenIn, canLoadMore, onDecide, onInfo, onLoadMore, onClose }) {
+function DiscoverDeck({ cards, left, reopenIn, canLoadMore, busy, canUndo, onUndo, onDecide, onInfo, onLoadMore, onClose }) {
   const [drag, setDrag] = useState(null);   // {dx, dy} mientras arrastras
   const [fly, setFly] = useState(null);     // dirección de salida animada
   const startRef = useRef(null);            // {x, y, moved} — moved distingue arrastre de toque
@@ -1113,9 +1113,21 @@ function DiscoverDeck({ cards, left, reopenIn, canLoadMore, onDecide, onInfo, on
             {left > 0 && left <= 10 && <span className="font-semibold text-brass2"> · {left === 1 ? "queda 1" : `quedan ${left}`}</span>}
           </p>
         </div>
-        <button onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-full bg-white/5 text-snow transition-transform active:scale-90" aria-label="Cerrar Descubrir">
-          <X size={18} />
-        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          {/* ¿botón equivocado? devuelve la carta al mazo sin ir a buscarla a la videoteca */}
+          {canUndo && (
+            <button
+              onClick={onUndo}
+              className="flex items-center gap-1.5 rounded-full bg-brass/15 px-3 py-2 text-xs font-bold text-brass ring-1 ring-brass/30 transition-transform active:scale-95"
+              aria-label="Deshacer la última decisión"
+            >
+              <RotateCcw size={13} /> Deshacer
+            </button>
+          )}
+          <button onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-full bg-white/5 text-snow transition-transform active:scale-90" aria-label="Cerrar Descubrir">
+            <X size={18} />
+          </button>
+        </div>
       </div>
 
       <div className="relative min-h-0 flex-1 px-6 py-3">
@@ -1130,11 +1142,17 @@ function DiscoverDeck({ cards, left, reopenIn, canLoadMore, onDecide, onInfo, on
           </div>
         ) : cards.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
-            <p className="text-4xl">🍿</p>
-            <p className="max-w-60 text-sm text-fog">No quedan candidatos por ahora.</p>
+            <p className="text-4xl">{busy ? "🎬" : "🍿"}</p>
+            <p className="max-w-60 text-sm text-fog">
+              {busy ? "Buscando títulos nuevos…" : "No quedan candidatos por ahora."}
+            </p>
             {canLoadMore && (
-              <button onClick={onLoadMore} className="rounded-full bg-brass px-4 py-2.5 text-sm font-bold text-ink transition-transform active:scale-95">
-                Cargar más
+              <button
+                onClick={onLoadMore}
+                disabled={busy}
+                className="flex items-center gap-2 rounded-full bg-brass px-4 py-2.5 text-sm font-bold text-ink transition-transform active:scale-95 disabled:opacity-60"
+              >
+                {busy ? <><Globe size={14} className="animate-spin" /> Buscando…</> : "Cargar más"}
               </button>
             )}
           </div>
@@ -1487,6 +1505,8 @@ export default function App() {
   });
   const [deckQuota, setDeckQuota] = useState(loadDeckQuota); // {start, count} de la tanda (cierre 12 h)
   const deckLoading = useRef(false);
+  const [deckBusy, setDeckBusy] = useState(false);  // el ref no repinta: esto sí da señal visible
+  const [lastDeck, setLastDeck] = useState(null);   // última decisión del deck, para deshacerla
   const toastTimer = useRef(null);
 
   // diario de actividad: +n capítulos/pelis marcados hoy
@@ -1494,6 +1514,17 @@ export default function App() {
     if (n <= 0) return;
     setActivity((a) => {
       const next = { ...a, [dayStr()]: (a[dayStr()] || 0) + n };
+      try { localStorage.setItem(ACT_KEY, JSON.stringify(next)); } catch { /* sin hueco */ }
+      return next;
+    });
+  };
+
+  /* inverso de logActivity: al deshacer, la racha no debe quedarse el punto */
+  const unlogActivity = (n = 1) => {
+    setActivity((a) => {
+      const left = Math.max(0, (a[dayStr()] || 0) - n);
+      const next = { ...a };
+      if (left) next[dayStr()] = left; else delete next[dayStr()];
       try { localStorage.setItem(ACT_KEY, JSON.stringify(next)); } catch { /* sin hueco */ }
       return next;
     });
@@ -1652,6 +1683,7 @@ export default function App() {
     if (status === "skipped") say(`🥢 «${entry.title}»: ni con un palo`);
     else if (status === "watched") sayRate(`＋ «${entry.title}» en «Vista»`, entry.id);
     else say(`＋ «${entry.title}» en «${STATUS[status].single}»`);
+    return entry; // lo devuelve para que «deshacer» sepa esperar a que esté guardado
   };
 
   /* abrir un resultado de búsqueda: ficha real si ya está, preview si no */
@@ -1788,43 +1820,83 @@ export default function App() {
     });
   };
 
+  /* Recolector de páginas de TMDB. Tras meses de uso hay cientos de títulos ya
+     decididos, así que una página entera puede venir filtrada y no aportar NADA.
+     Por eso insistimos varias páginas en una sola llamada, en vez de rendirnos:
+     antes cada pulsación de «Cargar más» avanzaba una sola página y el usuario
+     tenía que darle muchas veces hasta acertar con una que trajera algo. */
+  const collectDeckPages = async ({ from, seedKeys, target, budget, onBatch }) => {
+    const seen = new Set(seedKeys);
+    let page = from, added = 0, tries = 0;
+    while (added < target && tries < budget) {
+      tries += 1;
+      page += 1;
+      const batch = (await fetchDeckPage(page)).filter((c) => !seen.has(itemKey(c)));
+      batch.forEach((c) => seen.add(itemKey(c)));
+      added += batch.length;
+      onBatch(batch, page);
+    }
+    return added;
+  };
+
   const openDiscover = async () => {
     setDeckQuota(loadDeckQuota()); // por si la tanda de 12 h expiró desde el arranque
     decided.current = new Set(); // lo decidido ya está en la videoteca a estas alturas
+    setLastDeck(null);           // el deshacer no cruza de una tanda a otra
     setDeck({ cards: notOwned(catalog), page: 0 });
     if (tmdbKey && !deckLoading.current) {
       deckLoading.current = true;
-      // si ya has decidido sobre media semana de trending, la página 1 sale vacía
-      // de estrenos: pasamos páginas hasta juntar mazo con material nuevo
-      let cards = [], page = 0;
+      setDeckBusy(true);
       try {
-        while (cards.length < 12 && page < 5) {
-          page += 1;
-          const batch = await fetchDeckPage(page);
-          const seen = new Set(cards.map(itemKey));
-          const fresh = batch.filter((c) => !seen.has(itemKey(c)));
-          if (fresh.length === 0 && cards.length) break; // el trending ya se repite
-          cards = [...cards, ...fresh];
-          if (cards.length) setDeck({ cards, page }); // pinta ya; el resto se suma solo
-        }
+        let relevado = false; // la primera tanda de TMDB releva al catálogo local
+        await collectDeckPages({
+          from: 0, seedKeys: [], target: 12, budget: 8,
+          onBatch: (batch, page) => {
+            const releva = !relevado && batch.length > 0;
+            if (releva) relevado = true;
+            // fusión funcional: seguimos paginando de fondo y el usuario ya puede
+            // decidir — sin esto, una tanda tardía resucitaría cartas ya decididas
+            setDeck((d) => {
+              if (!d) return d;
+              const base = releva ? [] : d.cards;
+              const seen = new Set(base.map(itemKey));
+              const fresh = batch.filter((c) => !seen.has(itemKey(c)) && !decided.current.has(itemKey(c)));
+              return { cards: [...base, ...fresh], page };
+            });
+          },
+        });
       } catch { /* sin red a mitad: jugamos con lo que haya (o el catálogo local) */ }
       deckLoading.current = false;
+      setDeckBusy(false);
     }
   };
 
-  const deckMore = async () => {
+  /* `auto`: rellenado en segundo plano al quedar pocas cartas. Ahí no avisamos de
+     nada — el toast pisaría el de la decisión que acabas de tomar — y gastamos
+     menos páginas; la insistencia larga se reserva al «Cargar más» que tú pulsas. */
+  const deckMore = async ({ auto = false } = {}) => {
     if (!tmdbKey || !deck || deckLoading.current) return;
     deckLoading.current = true;
+    setDeckBusy(true);
     try {
-      const batch = await fetchDeckPage(deck.page + 1); // ya filtrado a lo no visto
-      setDeck((d) => {
-        if (!d) return d;
-        // el orden del trending baila entre páginas: sin esto salen cartas repetidas
-        const seen = new Set(d.cards.map(itemKey));
-        return { cards: [...d.cards, ...batch.filter((c) => !seen.has(itemKey(c)))], page: d.page + 1 };
+      const added = await collectDeckPages({
+        from: deck.page,
+        seedKeys: deck.cards.map(itemKey),
+        target: 6,
+        budget: auto ? 4 : 8,
+        // el orden del trending baila entre páginas: mezclamos sin repetir, y sin
+        // recuperar lo decidido mientras cargaba
+        onBatch: (batch, page) => setDeck((d) => {
+          if (!d) return d;
+          const seen = new Set(d.cards.map(itemKey));
+          const fresh = batch.filter((c) => !seen.has(itemKey(c)) && !decided.current.has(itemKey(c)));
+          return { cards: [...d.cards, ...fresh], page };
+        }),
       });
+      if (!added && !auto) say("Sin novedades ahora mismo — inténtalo más tarde 🍿");
     } catch { say("Sin conexión con TMDB"); }
     deckLoading.current = false;
+    setDeckBusy(false);
   };
 
   /* gasta un turno de la tanda (la primera decisión la arranca) */
@@ -1837,21 +1909,52 @@ export default function App() {
       return next;
     });
   };
+
+  /* devuelve el turno: una decisión deshecha no debe gastar cupo */
+  const refundDeckTurn = () => {
+    setDeckQuota((q) => {
+      const next = { ...q, count: Math.max(0, q.count - 1) };
+      saveDeckQuota(next);
+      return next;
+    });
+  };
+
+  /* Deshacer la última decisión del deck («me he equivocado de botón»).
+     Devuelve la carta al mazo, el turno al cupo y borra lo que se guardó.
+     Espera a `pending` porque addFromCatalog hidrata en segundo plano: sin eso,
+     deshacer muy rápido dejaría el título huérfano en la videoteca. */
+  const undoDeckDecision = async () => {
+    const a = lastDeck;
+    if (!a) return;
+    setLastDeck(null);
+    decided.current.delete(itemKey(a.card));
+    setDeck((d) => d && { ...d, cards: [a.card, ...d.cards] });
+    refundDeckTurn();
+    setToast(null); // el toast de estrellas apuntaba a lo que estamos quitando
+    if (a.dir !== "down") {
+      try { await a.pending; } catch { /* si falló al guardar, nada que quitar */ }
+      setLib((L) => L.filter((i) => !sameItem(i, a.card)));
+      if (SWIPE[a.dir].status === "watched") unlogActivity(1);
+    }
+    say(`↩️ «${a.card.title}» vuelve al mazo`);
+  };
   const deckLeft = DECK_LIMIT - (deckQuota.start && Date.now() - deckQuota.start < DECK_WINDOW_MS ? deckQuota.count : 0);
 
   const deckDecide = (card, dir) => {
     if (deckLeft <= 0) return; // la sala está cerrada
     spendDeckTurn();
     decided.current.add(itemKey(card)); // en ⬇ solo aparta la carta esta tanda
+    let pending = null;
     if (dir === "down") {
       say(`💤 «${card.title}» — otro día será`);
     } else {
       // siempre por addFromCatalog: hidrata TMDB (temporadas/duración) y normaliza
       // el título antes de guardarlo — una serie sin `seasons` rompería el render
-      addFromCatalog(card, SWIPE[dir].status);
+      pending = addFromCatalog(card, SWIPE[dir].status);
     }
+    setLastDeck({ card, dir, pending }); // por si te has equivocado de botón
     setDeck((d) => d && { ...d, cards: d.cards.filter((c) => c !== card) });
-    if (deck && deck.cards.length <= 3 && tmdbKey) deckMore();
+    if (deck && deck.cards.length <= 3 && tmdbKey) deckMore({ auto: true });
   };
 
   const saveKey = (key) => {
@@ -1949,8 +2052,9 @@ export default function App() {
       )}
       {deck && (
         <DiscoverDeck cards={deck.cards} left={deckLeft} canLoadMore={!!tmdbKey}
+          busy={deckBusy} canUndo={!!lastDeck} onUndo={undoDeckDecision}
           reopenIn={Math.max(1, Math.ceil((deckQuota.start + DECK_WINDOW_MS - Date.now()) / 36e5))}
-          onDecide={deckDecide} onInfo={openFromSearch} onLoadMore={deckMore} onClose={() => setDeck(null)} />
+          onDecide={deckDecide} onInfo={openFromSearch} onLoadMore={() => deckMore()} onClose={() => setDeck(null)} />
       )}
       {detail && (
         <DetailSheet
