@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Copia de seguridad automática de Android (Android 6 a 11).
+
+  Solo el espejo de la videoteca que escribe src/backup.js. Antes, sin reglas,
+  Android copiaba el directorio entero de la app, incluida la caché de carátulas
+  del WebView, que crece sin límite: al pasar de los 25 MB que Android admite por
+  app, la copia fallaba entera y en silencio.
+-->
+<full-backup-content>
+    <include domain="file" path="butaca-backup.json" />
+</full-backup-content>

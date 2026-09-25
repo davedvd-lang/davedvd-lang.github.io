@@ -37,3 +37,4 @@ ajusta `executablePath` al principio de cada script si tu Chromium no está en
 | smoke19.mjs | logo de TMDB (+ descargo) y JustWatch como enlaces de atribución |
 | smoke20.mjs | dos pelis con el mismo título y distinto año son títulos distintos |
 | smoke21.mjs | Descubrir: «Deshacer» la última decisión y «Cargar más» que insiste solo |
+| smoke22.mjs | copia automática Android (espejo + restauración + blindajes) y contador del deck |

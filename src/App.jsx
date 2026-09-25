@@ -13,6 +13,7 @@ import {
 import { shareCard } from "./share.js";
 import { TMDB_LOGO, JUSTWATCH_LOGO } from "./brand.js";
 import { saveBlob } from "./native.js";
+import { backupEnabled, scheduleMirror, takeRestoredCount } from "./backup.js";
 
 /* ---------- helpers de dominio ---------- */
 
@@ -1104,15 +1105,20 @@ function DiscoverDeck({ cards, left, reopenIn, canLoadMore, busy, canUndo, onUnd
 
   return (
     <div className="fixed inset-0 z-40 flex flex-col bg-ink" role="dialog" aria-modal="true">
-      <div className="flex items-center justify-between px-5 pb-2 pt-[max(env(safe-area-inset-top),24px)]">
-        <div>
-          <h2 className="text-xl font-extrabold tracking-tight text-snow">Descubrir</h2>
-          <p className="text-xs text-fog">desliza: 🥢 ni con un palo · ⬆ por ver · ✓ vista · ⬇ otro día</p>
-          <p className="text-xs text-fog/70">
-            toca la carta para ver su ficha completa
-            {left > 0 && left <= 10 && <span className="font-semibold text-brass2"> · {left === 1 ? "queda 1" : `quedan ${left}`}</span>}
-          </p>
-        </div>
+      <div className="px-5 pb-2 pt-[max(env(safe-area-inset-top),24px)]">
+        {/* El contador tiene fila propia junto al título. Antes iba al final de la pista
+            y, al aparecer «Deshacer», la columna se estrechaba tanto que «quedan N»
+            acababa enterrado en la cuarta línea de letra pequeña. En pantallas
+            estrechas el flex-wrap lo baja bajo el título, pero siempre como píldora. */}
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+            <h2 className="text-xl font-extrabold tracking-tight text-snow">Descubrir</h2>
+            {left > 0 && left <= 10 && (
+              <span className="shrink-0 rounded-full bg-brass/15 px-2.5 py-0.5 text-xs font-bold text-brass2 ring-1 ring-brass/30">
+                {left === 1 ? "queda 1" : `quedan ${left}`}
+              </span>
+            )}
+          </div>
         <div className="flex shrink-0 items-center gap-2">
           {/* ¿botón equivocado? devuelve la carta al mazo sin ir a buscarla a la videoteca */}
           {canUndo && (
@@ -1128,6 +1134,9 @@ function DiscoverDeck({ cards, left, reopenIn, canLoadMore, busy, canUndo, onUnd
             <X size={18} />
           </button>
         </div>
+        </div>
+        <p className="mt-1 text-xs text-fog">desliza: 🥢 ni con un palo · ⬆ por ver · ✓ vista · ⬇ otro día</p>
+        <p className="text-xs text-fog/70">toca la carta para ver su ficha completa</p>
       </div>
 
       <div className="relative min-h-0 flex-1 px-6 py-3">
@@ -1422,6 +1431,17 @@ function StatsView({ lib, activity, tmdbKey, onSaveKey, onReset, onExport, onImp
           Exporta tu videoteca a un archivo JSON y guárdalo donde quieras. Importar
           reemplaza la videoteca actual por la del archivo.
         </p>
+        {backupEnabled() && (
+          <p className="mt-2 flex gap-1.5 rounded-xl bg-mint/10 p-2.5 text-[11px] leading-relaxed text-fog ring-1 ring-mint/25">
+            <span aria-hidden>🛟</span>
+            <span>
+              <span className="font-semibold text-snow">Copia automática.</span> Butaca guarda sola tu
+              videoteca en tu cuenta de Google (Android la sube con el móvil cargando y con Wi-Fi, si
+              tienes activada la copia de seguridad de Google). Si cambias o pierdes el móvil, instala
+              Butaca con la misma cuenta y vuelve todo.
+            </span>
+          </p>
+        )}
         <div className="mt-3 flex gap-2">
           <button
             onClick={onExport}
@@ -1458,7 +1478,9 @@ function StatsView({ lib, activity, tmdbKey, onSaveKey, onReset, onExport, onImp
       </button>
 
       <p className="mt-4 text-center text-xs text-fog/70">
-        Tu videoteca se guarda en este dispositivo · nunca sale de él
+        {backupEnabled()
+          ? "Tu videoteca se guarda en este dispositivo y en la copia de tu cuenta de Google · nunca en servidores de Butaca"
+          : "Tu videoteca se guarda en este dispositivo · nunca sale de él"}
       </p>
     </div>
   );
@@ -1544,6 +1566,10 @@ export default function App() {
     try { localStorage.setItem(LIB_KEY, JSON.stringify(lib)); } catch { /* sin hueco */ }
   }, [lib]);
 
+  // Espejo para la copia de Google de Android (ver backup.js): así, si cambias o
+  // pierdes el móvil, al instalar Butaca con la misma cuenta vuelve todo.
+  useEffect(() => { scheduleMirror({ library: lib, activity }); }, [lib, activity]);
+
   // Carátulas reales para lo que aún no tenga (TVmaze / iTunes / TMDB)
   const missing = lib.filter((i) => !i.img && !(posterKey(i) in posters)).map(posterKey).join("|");
   useEffect(() => {
@@ -1565,11 +1591,18 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [detail, preview, tmdbKey]);
 
-  const say = (msg) => {
+  const say = (msg, ms = 2200) => {
     clearTimeout(toastTimer.current);
     setToast({ msg, key: Date.now() });
-    toastTimer.current = setTimeout(() => setToast(null), 2200);
+    toastTimer.current = setTimeout(() => setToast(null), ms);
   };
+
+  // Si main.jsx ha recuperado la videoteca de la copia de Android, que se note.
+  useEffect(() => {
+    const n = takeRestoredCount();
+    if (n) say(`🛟 Recuperada tu videoteca de la copia de Google: ${n} ${n === 1 ? "título" : "títulos"}`, 6000);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /* toast con estrellas: al terminar algo, puntúalo ahí mismo sin abrir la ficha */
   const sayRate = (msg, id) => {

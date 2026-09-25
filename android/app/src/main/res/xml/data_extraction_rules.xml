@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 12 y posteriores: las mismas reglas que backup_rules.xml, para la copia
+  en la nube y para el traspaso al configurar un móvil nuevo desde el antiguo.
+  Solo el espejo de la videoteca (src/backup.js); nunca las cachés del WebView.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <include domain="file" path="butaca-backup.json" />
+    </cloud-backup>
+    <device-transfer>
+        <include domain="file" path="butaca-backup.json" />
+    </device-transfer>
+</data-extraction-rules>

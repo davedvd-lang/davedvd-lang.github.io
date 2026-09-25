@@ -69,3 +69,18 @@ set "BUTACA_TMDB_KEY=tu_clave_aqui" && npm run android # Windows (cmd)
 - El botón **Exportar** (descarga de un blob) puede no disparar la descarga dentro del
   WebView de Android. Si pasa, la solución es usar los plugins `@capacitor/filesystem` +
   `@capacitor/share` para guardar/compartir el archivo — pídemelo y lo integro.
+
+## Copia de seguridad automática (Google)
+
+Desde la versión 1.2 la app deja un espejo de la videoteca en `butaca-backup.json` y
+Android copia **solo ese archivo** en la cuenta de Google del usuario (reglas en
+`app/src/main/res/xml/backup_rules.xml` y `data_extraction_rules.xml`). Al instalar
+Butaca en un móvil nuevo con la misma cuenta, la videoteca vuelve sola.
+
+- Android sube la copia cuando el móvil está **cargando, con Wi-Fi y sin usar**, como
+  mucho una vez al día. Requiere tener activada la copia de seguridad de Google.
+- **Comprobarlo**: Ajustes → Google → Copia de seguridad → «Datos de apps»: debe
+  aparecer Butaca (tras un día con el móvil cargando por la noche).
+- **Forzarla** (con depuración USB): `adb shell bmgr backupnow com.davedvd.butaca`.
+- Nunca incluir en la copia las cachés del WebView: pasan de 25 MB y Android
+  descarta la copia entera.
