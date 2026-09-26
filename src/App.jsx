@@ -1432,15 +1432,21 @@ function StatsView({ lib, activity, tmdbKey, onSaveKey, onReset, onExport, onImp
           reemplaza la videoteca actual por la del archivo.
         </p>
         {backupEnabled() && (
-          <p className="mt-2 flex gap-1.5 rounded-xl bg-mint/10 p-2.5 text-[11px] leading-relaxed text-fog ring-1 ring-mint/25">
-            <span aria-hidden>🛟</span>
-            <span>
-              <span className="font-semibold text-snow">Copia automática.</span> Butaca guarda sola tu
-              videoteca en tu cuenta de Google (Android la sube con el móvil cargando y con Wi-Fi, si
-              tienes activada la copia de seguridad de Google). Si cambias o pierdes el móvil, instala
-              Butaca con la misma cuenta y vuelve todo.
-            </span>
-          </p>
+          <div className="mt-2 rounded-xl bg-mint/10 p-3 text-[11px] leading-relaxed text-fog ring-1 ring-mint/25">
+            <p className="flex items-center gap-1.5 text-xs font-bold text-snow">
+              <span aria-hidden>🛟</span> Copia automática en tu cuenta de Google
+            </p>
+            <p className="mt-1">
+              No tienes que iniciar sesión en Butaca: la copia la hace <span className="font-semibold text-snow">Android</span> con
+              la cuenta de Google de tu móvil (la de la Play Store), igual que con tus otras apps. Se sube sola
+              con el móvil cargando y con Wi-Fi.
+            </p>
+            <p className="mt-1">
+              <span className="font-semibold text-snow">Compruébalo:</span> Ajustes → Google → Copia de seguridad debe estar
+              activada. Si cambias o pierdes el móvil, entra en el nuevo con la misma cuenta, instala Butaca y tu
+              videoteca vuelve sola.
+            </p>
+          </div>
         )}
         <div className="mt-3 flex gap-2">
           <button
