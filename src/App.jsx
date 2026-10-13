@@ -899,6 +899,37 @@ function DetailSheet({ item, preview = false, extras, update, onApplyUpdate, onN
 
 /* ---------- añadir (buscador) ---------- */
 
+/* Distintivo de un resultado que ya está en tu videoteca: dice su estado REAL.
+   Antes ponía «✓ En tu lista» para todo, y una peli ya vista y puntuada parecía
+   seguir pendiente — «mi lista» suena a lista de pendientes, como en Netflix.
+   La línea «en tu videoteca» de encima evita confundirlo con el botón «Por ver». */
+const BADGE_TONE = {
+  watched: "bg-mint/10 text-mint ring-mint/30",
+  watchlist: "bg-brass/10 text-brass2 ring-brass/30",
+  watching: "bg-white/5 text-snow ring-line",
+  paused: "bg-white/5 text-snow ring-line",
+  dropped: "bg-white/5 text-fog ring-line",
+  skipped: "bg-white/5 text-fog ring-line",
+};
+
+function OwnedBadge({ item }) {
+  const st = STATUS[item.status] || STATUS.watchlist;
+  const Icon = st.icon;
+  const extra =
+    item.status === "watched" && item.rating ? `★ ${item.rating}`
+      : item.type === "series" && (item.status === "watching" || item.status === "paused") ? lastSeenLabel(item)
+        : "";
+  return (
+    <span className="flex shrink-0 flex-col items-end gap-0.5">
+      <span className="text-[9px] font-semibold uppercase tracking-wide text-fog/60">en tu videoteca</span>
+      <span className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold ring-1 ${BADGE_TONE[item.status] || BADGE_TONE.watching}`}>
+        {item.status === "skipped" ? "🥢 Ni con un palo" : <><Icon size={11} /> {st.single}</>}
+        {extra && <span className="font-semibold opacity-80">· {extra}</span>}
+      </span>
+    </span>
+  );
+}
+
 function AddSheet({ lib, tmdbKey, onClose, onAdd, onPreview }) {
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState("all");
@@ -989,15 +1020,7 @@ function AddSheet({ lib, tmdbKey, onClose, onAdd, onPreview }) {
                     </div>
                   </button>
                   {added ? (
-                    owned.status === "skipped" ? (
-                      <span className="shrink-0 rounded-full bg-white/5 px-2.5 py-1 text-[10px] font-bold text-fog ring-1 ring-line">
-                        🥢 Ni con un palo
-                      </span>
-                    ) : (
-                      <span className="shrink-0 rounded-full bg-mint/10 px-2.5 py-1 text-[10px] font-bold text-mint ring-1 ring-mint/30">
-                        ✓ En tu lista
-                      </span>
-                    )
+                    <OwnedBadge item={owned} />
                   ) : (
                     <div className="flex shrink-0 flex-col gap-1.5">
                       <button onClick={() => onAdd(c, "watchlist")} className="add-mini justify-center" aria-label={`Añadir ${c.title} a Por ver`}>

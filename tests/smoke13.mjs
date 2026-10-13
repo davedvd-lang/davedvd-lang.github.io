@@ -58,7 +58,7 @@ await page.waitForTimeout(900);
 ok("salen los dos remakes", (await page.getByText("Desafío total").count()) === 2);
 await page.getByRole("button", { name: "Añadir Desafío total a Por ver" }).first().click();
 await page.waitForTimeout(700);
-ok("solo UNA marcada «En tu lista»", (await page.getByText("✓ En tu lista").count()) === 1);
+ok("solo UNA marcada como «en tu videoteca»", (await page.getByText(/en tu videoteca/i).count()) === 1);
 ok("la otra sigue ofreciendo añadirse", (await page.getByRole("button", { name: "Añadir Desafío total a Por ver" }).count()) === 1);
 await page.screenshot({ path: "shot13-remakes.png" });
 

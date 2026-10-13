@@ -38,3 +38,4 @@ ajusta `executablePath` al principio de cada script si tu Chromium no está en
 | smoke20.mjs | dos pelis con el mismo título y distinto año son títulos distintos |
 | smoke21.mjs | Descubrir: «Deshacer» la última decisión y «Cargar más» que insiste solo |
 | smoke22.mjs | copia automática Android (espejo + restauración + blindajes) y contador del deck |
+| smoke23.mjs | el buscador marca lo que ya tienes con su estado real («Vista ★4», «Viendo T1·E3»…) |

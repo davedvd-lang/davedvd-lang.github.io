@@ -43,7 +43,8 @@ ok("adopción: siguiente capítulo T1·E6", (await page.getByText(/Marcar T1·E6
 await page.screenshot({ path: "shot5-adopted.png" });
 await page.getByRole("button", { name: "Cerrar ficha" }).click();
 await page.waitForTimeout(400);
-ok("al cerrar vuelve al buscador con «En tu lista»", (await page.getByText("✓ En tu lista").count()) > 0);
+// el distintivo dice el estado real (antes un genérico «✓ En tu lista»)
+ok("al cerrar vuelve al buscador marcada «Viendo · T1·E5»", (await page.getByText(/en tu videoteca/i).count()) > 0 && (await page.getByText("T1·E5", { exact: false }).count()) > 0);
 
 // 3. preview de peli → chip «Vista» directo → ficha real con estrellas
 await page.getByPlaceholder("Busca una peli o serie…").fill("padrino");
@@ -84,7 +85,7 @@ await page.getByRole("button", { name: "Cerrar ficha" }).click();
 await page.waitForTimeout(300);
 await page.getByPlaceholder("Busca una peli o serie…").fill("breaking");
 await page.waitForTimeout(900);
-ok("resultado ya añadido marcado «En tu lista»", (await page.getByText("✓ En tu lista").count()) > 0);
+ok("resultado ya añadido marcado con su estado («Por ver»)", (await page.getByText(/en tu videoteca/i).count()) > 0);
 await page.getByRole("button", { name: "Ver ficha de Breaking Bad" }).click();
 await page.waitForTimeout(500);
 ok("ya en videoteca → ficha real", (await page.getByText("Eliminar de mi videoteca").count()) > 0);
