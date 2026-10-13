@@ -82,5 +82,7 @@ Butaca en un móvil nuevo con la misma cuenta, la videoteca vuelve sola.
 - **Comprobarlo**: Ajustes → Google → Copia de seguridad → «Datos de apps»: debe
   aparecer Butaca (tras un día con el móvil cargando por la noche).
 - **Forzarla** (con depuración USB): `adb shell bmgr backupnow com.davedvd.butaca`.
-- Nunca incluir en la copia las cachés del WebView: pasan de 25 MB y Android
-  descarta la copia entera.
+- No incluir en la copia los archivos internos del WebView (`app_webview/`): son el
+  LevelDB del localStorage, atado a esa versión del WebView; la fuente buena es el
+  espejo JSON. (Las cachés HTTP —carátulas incluidas— viven en el directorio de
+  caché, que Android nunca copia, así que no cuentan para el límite de 25 MB.)

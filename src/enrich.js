@@ -40,6 +40,26 @@ export function saveTmdbKey(key) {
   try { localStorage.setItem(TMDB_KEY, key); } catch { /* sin hueco */ }
 }
 
+/* Las cachés comparten localStorage con la videoteca (unos 5-10 MB en Android).
+   Antes solo se añadían entradas, nunca se quitaban: con uso diario crecían unos
+   3 MB al año y, en unos años, la videoteca dejaría de caber y de guardarse sin
+   avisar. Ahora cada escritura tira lo caducado, y si aun así no cabe, la caché
+   se borra entera: una caché nunca vale más que tu videoteca. */
+function saveCache(key, cache, ttl) {
+  const now = Date.now();
+  for (const k of Object.keys(cache)) if (!(now - cache[k]?.ts < ttl)) delete cache[k];
+  try { localStorage.setItem(key, JSON.stringify(cache)); }
+  catch { try { localStorage.removeItem(key); } catch { /* nada */ } }
+}
+
+/** Borra todo lo prescindible de localStorage. App lo llama si guardar la
+    videoteca falla por falta de espacio, y reintenta. */
+export function freeCacheSpace() {
+  for (const k of [EXTRAS_CACHE, SEASON_DATES_CACHE, TVCHECK, POSTER_CACHE]) {
+    try { localStorage.removeItem(k); } catch { /* nada */ }
+  }
+}
+
 async function getJSON(url) {
   const r = await fetch(url);
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -193,7 +213,7 @@ export async function fetchExtras(item, apiKey) {
     || vids.find((v) => v.type === "Trailer") || vids[0];
   const data = { providers, cast, director, trailer: pick ? `https://www.youtube.com/watch?v=${pick.key}` : "" };
   cache[k] = { ts: Date.now(), data };
-  try { localStorage.setItem(EXTRAS_CACHE, JSON.stringify(cache)); } catch { /* sin hueco */ }
+  saveCache(EXTRAS_CACHE, cache, 7 * 864e5);
   return data;
 }
 
@@ -214,7 +234,7 @@ export async function fetchSeasonDates(item, season, apiKey) {
   const j = await getJSON(`https://api.themoviedb.org/3/tv/${item.tmdbId}/season/${season}?${q}`);
   const eps = (j.episodes || []).map((e) => ({ ep: e.episode_number, air: e.air_date || "" }));
   cache[k] = { ts: Date.now(), eps };
-  try { localStorage.setItem(SEASON_DATES_CACHE, JSON.stringify(cache)); } catch { /* sin hueco */ }
+  saveCache(SEASON_DATES_CACHE, cache, 864e5);
   return eps;
 }
 
@@ -245,7 +265,7 @@ export async function checkSeasonUpdates(items, apiKey, onFound) {
             .map((s) => s.episode_count),
         };
         cache[k] = entry;
-        try { localStorage.setItem(TVCHECK, JSON.stringify(cache)); } catch { /* sin hueco */ }
+        saveCache(TVCHECK, cache, 864e5);
       } catch { continue; /* sin red: se reintenta otro día */ }
     }
     const localTotal = it.seasons.reduce((n, s) => n + s.eps, 0);

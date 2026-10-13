@@ -1,9 +1,9 @@
 // Copia de seguridad automática (Android) + contador del deck.
 //
 // Motivo: a la pareja del usuario le robaron el móvil y perdió toda su videoteca.
-// Android ya tenía la copia automática activada, pero copiaba también la caché de
-// carátulas del WebView, pasaba de 25 MB y fallaba entera. Ahora la app deja un
-// espejo pequeño (`butaca-backup.json`) y Android copia SOLO ese archivo.
+// Antes la app dependía de que Android copiara a ciegas los archivos internos del
+// WebView. Ahora deja un espejo pequeño (`butaca-backup.json`), Android copia SOLO
+// ese archivo y Stats dice cuándo se preparó la última copia y con cuántos títulos.
 //
 // En el navegador, @capacitor/filesystem guarda en IndexedDB («Disc» → «FileStorage»),
 // así que activando window.__BUTACA_BACKUP_TEST__ se ejercita la MISMA lógica que en
@@ -77,6 +77,13 @@ async function backupCtx() {
   ok("   con la videoteca completa (3 títulos)", snap?.library?.length === 3);
   ok("   y en formato de exportación (sirve también para Importar)", snap?.app === "butaca" && snap?.version === 1);
 
+  // Stats dice cuándo se preparó la copia y con cuántos títulos
+  await page.getByRole("button", { name: "Stats" }).click();
+  await page.waitForTimeout(400);
+  const estado = page.getByTestId("backup-status");
+  ok(`1b. Stats: «${await estado.textContent().catch(() => "—")}»`, /^Copia preparada hoy a las \d\d:\d\d · 3 títulos$/.test(await estado.textContent().catch(() => "")));
+  await page.getByRole("button", { name: "Hoy" }).click();
+
   // móvil nuevo: la app se instala (localStorage vacío) y Android devuelve el espejo
   await page.evaluate(() => localStorage.clear());
   await page.reload();
@@ -95,6 +102,7 @@ async function backupCtx() {
   await page.waitForTimeout(800);
   const vacio = JSON.parse((await readMirror(page)) || "null");
   ok("3. borrar la videoteca vacía también el espejo, al instante", vacio?.library?.length === 0);
+  ok("   y Stats lo refleja al momento (0 títulos)", /· 0 títulos$/.test(await page.getByTestId("backup-status").textContent().catch(() => "")));
   await page.evaluate(() => localStorage.clear());
   await page.reload();
   await page.waitForTimeout(1200);
@@ -117,6 +125,13 @@ async function backupCtx() {
   await page.reload(); // localStorage vacío + espejo que no se puede restaurar
   await page.waitForTimeout(2200);
   ok("4. un arranque vacío deja la copia existente intacta", (await readMirror(page)) === ajeno);
+  // (sin la bienvenida de por medio: es un arranque vacío de verdad)
+  await page.evaluate(() => localStorage.setItem("butaca:welcome:v1", "1"));
+  await page.reload();
+  await page.waitForTimeout(800);
+  await page.getByRole("button", { name: "Stats" }).click();
+  await page.waitForTimeout(400);
+  ok("   Stats: «Aún no hay nada que copiar»", (await page.getByText(/Aún no hay nada que copiar/).count()) === 1);
   await ctx.close();
 }
 

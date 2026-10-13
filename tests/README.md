@@ -7,7 +7,7 @@ no necesitan red ni claves.
 
 ```bash
 npm run build
-node tests/smoke8.mjs   # el más reciente; cada smokeN cubre una tanda de features
+node tests/smoke24.mjs  # el más reciente; cada smokeN cubre una tanda de features
 ```
 
 Requieren `playwright-core` (`npm i -D playwright-core`) y un Chromium local:
@@ -37,5 +37,6 @@ ajusta `executablePath` al principio de cada script si tu Chromium no está en
 | smoke19.mjs | logo de TMDB (+ descargo) y JustWatch como enlaces de atribución |
 | smoke20.mjs | dos pelis con el mismo título y distinto año son títulos distintos |
 | smoke21.mjs | Descubrir: «Deshacer» la última decisión y «Cargar más» que insiste solo |
-| smoke22.mjs | copia automática Android (espejo + restauración + blindajes) y contador del deck |
+| smoke22.mjs | copia automática Android (espejo + restauración + blindajes + «Copia preparada…» en Stats) y contador del deck |
 | smoke23.mjs | el buscador marca lo que ya tienes con su estado real («Vista ★4», «Viendo T1·E3»…) |
+| smoke24.mjs | cachés con tope: poda de lo caducado, localStorage lleno sin perder la videoteca, tope de carátulas del service worker |

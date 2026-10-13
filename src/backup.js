@@ -1,15 +1,18 @@
 // Copia de seguridad automática en la cuenta de Google (Android).
 //
 // Por qué existe: a una usuaria le robaron el móvil y perdió toda su videoteca.
-// Android ya tenía activada la copia automática (`allowBackup="true"`), pero copiaba
-// TODO el directorio de la app — incluida la caché de carátulas del WebView, que
-// crece sin límite. En cuanto pasa de los 25 MB que Android admite por app, la
-// copia falla entera, en silencio. Con meses de uso eso ocurre seguro.
+// Antes la app no hacía nada a propósito: dependía de que Android copiara, a
+// ciegas, los archivos internos del WebView donde vive el localStorage (una base
+// de datos LevelDB pensada para ese WebView, no para viajar a otro móvil). Nadie
+// garantizaba que eso se restaurase bien, y no había forma de saber si había copia.
+// (Una versión anterior de este comentario culpaba a la caché de carátulas de
+// pasar de 25 MB; era falso: esa caché vive en el directorio de caché, que Android
+// no copia nunca, y la app nativa no lleva service worker.)
 //
 // La solución: la app deja un espejo pequeño de la videoteca en `butaca-backup.json`
 // (directorio de datos de la app) y las reglas de android/app/src/main/res/xml/ le
-// dicen a Android que copie SOLO ese archivo. Pasa de «cientos de MB que fallan» a
-// «unos KB que siempre caben». Al instalar Butaca en un móvil nuevo con la misma
+// dicen a Android que copie SOLO ese archivo: un JSON nuestro, de unos KB, que
+// sabemos leer y validar. Al instalar Butaca en un móvil nuevo con la misma
 // cuenta de Google, Android restaura el archivo y `restoreFromBackup()` rehace la
 // videoteca antes del primer render.
 //
@@ -37,6 +40,31 @@ async function fs() {
 let timer = null;
 let pending = null;
 let sawData = false; // ¿ha habido títulos en esta sesión?
+let lastBody = null; // lo último escrito: si no cambia nada, no se reescribe
+
+/* Estado de la copia para Stats: cuándo se preparó y con cuántos títulos. */
+let info = null;      // { at: ISO, count } | null si aún no se sabe
+let failed = false;   // la última escritura falló (sin espacio, plugin…)
+const listeners = new Set();
+const emit = () => listeners.forEach((fn) => fn({ info, failed }));
+
+/** Avisa en cada copia preparada. Devuelve la función para darse de baja. */
+export function onMirrorStatus(fn) {
+  listeners.add(fn);
+  return () => listeners.delete(fn);
+}
+
+/** Estado actual. Si aún no se ha escrito en esta sesión, lee el archivo existente. */
+export async function mirrorStatus() {
+  if (info || failed) return { info, failed };
+  try {
+    const { Filesystem, Directory, Encoding } = await fs();
+    const { data } = await Filesystem.readFile({ path: BACKUP_FILE, directory: Directory.Data, encoding: Encoding.UTF8 });
+    const snap = JSON.parse(typeof data === "string" ? data : await data.text());
+    if (snap?.savedAt) info = { at: snap.savedAt, count: snap.library?.length || 0 };
+  } catch { /* aún no hay copia */ }
+  return { info, failed };
+}
 
 /**
  * Programa la escritura del espejo (se agrupan los cambios seguidos).
@@ -63,15 +91,24 @@ export async function flushMirror() {
   const state = pending;
   pending = null;
   if (!state) return;
+  const body = JSON.stringify(state);
+  if (body === lastBody) return; // idéntico a lo ya guardado
+  const savedAt = new Date().toISOString();
   try {
     const { Filesystem, Directory, Encoding } = await fs();
     await Filesystem.writeFile({
       path: BACKUP_FILE,
       directory: Directory.Data,
       encoding: Encoding.UTF8,
-      data: JSON.stringify({ app: "butaca", version: 1, savedAt: new Date().toISOString(), ...state }),
+      data: JSON.stringify({ app: "butaca", version: 1, savedAt, ...state }),
     });
-  } catch { /* sin espacio o sin plugin: se reintenta con el próximo cambio */ }
+    lastBody = body;
+    info = { at: savedAt, count: state.library?.length || 0 };
+    failed = false;
+  } catch {
+    failed = true; // sin espacio o sin plugin: se reintenta con el próximo cambio
+  }
+  emit();
 }
 
 // al pasar a segundo plano (o cerrar la app) que no quede nada pendiente

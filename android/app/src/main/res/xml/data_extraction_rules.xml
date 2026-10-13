@@ -2,7 +2,7 @@
 <!--
   Android 12 y posteriores: las mismas reglas que backup_rules.xml, para la copia
   en la nube y para el traspaso al configurar un móvil nuevo desde el antiguo.
-  Solo el espejo de la videoteca (src/backup.js); nunca las cachés del WebView.
+  Solo el espejo de la videoteca (src/backup.js); nada de los archivos internos del WebView.
 -->
 <data-extraction-rules>
     <cloud-backup>

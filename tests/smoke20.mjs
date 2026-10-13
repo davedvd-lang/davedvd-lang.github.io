@@ -69,7 +69,9 @@ await page.waitForTimeout(1200);
 const añadir = page.getByRole("button", { name: /Por ver/ }).last();
 await añadir.click();
 await page.waitForTimeout(500);
-await page.keyboard.press("Escape");
+// cerrar el buscador con su botón (Escape no lo cierra, y su filtro «Pelis»
+// chocaba con la pestaña «Pelis» de abajo)
+await page.getByRole("button", { name: "Cerrar buscador" }).click();
 await page.waitForTimeout(300);
 
 // Debe haber DOS fichas, no una

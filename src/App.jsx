@@ -7,13 +7,13 @@ import {
 } from "lucide-react";
 import { seedLibrary, catalog } from "./data.js";
 import {
-  checkSeasonUpdates, enrichPosters, fetchClassics, fetchExtras, fetchSeasonDates, fetchTrending, hasBuiltInKey, hasOwnTmdbKey, hydrateTmdbItem, loadPosterCache,
+  checkSeasonUpdates, enrichPosters, freeCacheSpace, fetchClassics, fetchExtras, fetchSeasonDates, fetchTrending, hasBuiltInKey, hasOwnTmdbKey, hydrateTmdbItem, loadPosterCache,
   loadTmdbKey, posterKey, saveTmdbKey, searchTmdb,
 } from "./enrich.js";
 import { shareCard } from "./share.js";
 import { TMDB_LOGO, JUSTWATCH_LOGO } from "./brand.js";
 import { saveBlob } from "./native.js";
-import { backupEnabled, scheduleMirror, takeRestoredCount } from "./backup.js";
+import { backupEnabled, mirrorStatus, onMirrorStatus, scheduleMirror, takeRestoredCount } from "./backup.js";
 
 /* ---------- helpers de dominio ---------- */
 
@@ -118,6 +118,16 @@ const SORTS = {
 /* ---------- diario de actividad (para racha y récords) ---------- */
 
 const ACT_KEY = "butaca:activity:v1";
+
+/** Guarda lo que importa (videoteca, racha). Si localStorage está lleno, tira las
+    cachés —prescindibles— y lo intenta otra vez: tus datos primero. */
+function saveImportant(key, value) {
+  try { localStorage.setItem(key, JSON.stringify(value)); }
+  catch {
+    freeCacheSpace();
+    try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* lleno de verdad */ }
+  }
+}
 
 export function loadActivity() {
   try { return JSON.parse(localStorage.getItem(ACT_KEY)) || {}; } catch { return {}; }
@@ -1307,6 +1317,39 @@ function TabBar({ tab, onTab, onAdd }) {
 
 /* ---------- stats (mini) ---------- */
 
+/** «Copia preparada hoy a las 21:04 · 312 títulos»: lo último que Butaca dejó preparado
+    para la copia de Google (ver backup.js). Subirla ya es cosa de Android. */
+function BackupStatus() {
+  const [st, setSt] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    mirrorStatus().then((s) => alive && setSt(s));
+    const off = onMirrorStatus((s) => alive && setSt(s));
+    return () => { alive = false; off(); };
+  }, []);
+  if (!st) return null;
+  const row = "mt-2 flex items-center gap-1.5 rounded-lg bg-ink/40 px-2.5 py-1.5 text-[11px] font-semibold";
+  if (st.failed) {
+    return <p className={`${row} text-red-300`}>⚠️ No se pudo preparar la copia. Exporta un archivo por si acaso.</p>;
+  }
+  if (!st.info) {
+    return <p className={`${row} text-fog`}>Aún no hay nada que copiar: añade tu primer título.</p>;
+  }
+  const at = new Date(st.info.at);
+  const hhmm = at.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
+  const ayer = new Date(); ayer.setDate(ayer.getDate() - 1);
+  const when = dayStr(at) === dayStr() ? `hoy a las ${hhmm}`
+    : dayStr(at) === dayStr(ayer) ? `ayer a las ${hhmm}`
+    : `el ${at.toLocaleDateString("es-ES", { day: "numeric", month: "long" })}`;
+  const n = st.info.count;
+  return (
+    <p className={`${row} text-snow`} data-testid="backup-status">
+      <Check size={13} className="shrink-0 text-mint" />
+      <span>Copia preparada {when} · {n} {n === 1 ? "título" : "títulos"}</span>
+    </p>
+  );
+}
+
 function StatsView({ lib, activity, tmdbKey, onSaveKey, onReset, onExport, onImport }) {
   const [draft, setDraft] = useState(tmdbKey);
   const [editKey, setEditKey] = useState(!tmdbKey); // con clave puesta, el bloque se pliega
@@ -1469,6 +1512,7 @@ function StatsView({ lib, activity, tmdbKey, onSaveKey, onReset, onExport, onImp
               activada. Si cambias o pierdes el móvil, entra en el nuevo con la misma cuenta, instala Butaca y tu
               videoteca vuelve sola.
             </p>
+            <BackupStatus />
           </div>
         )}
         <div className="mt-3 flex gap-2">
@@ -1565,7 +1609,7 @@ export default function App() {
     if (n <= 0) return;
     setActivity((a) => {
       const next = { ...a, [dayStr()]: (a[dayStr()] || 0) + n };
-      try { localStorage.setItem(ACT_KEY, JSON.stringify(next)); } catch { /* sin hueco */ }
+      saveImportant(ACT_KEY, next);
       return next;
     });
   };
@@ -1576,7 +1620,7 @@ export default function App() {
       const left = Math.max(0, (a[dayStr()] || 0) - n);
       const next = { ...a };
       if (left) next[dayStr()] = left; else delete next[dayStr()];
-      try { localStorage.setItem(ACT_KEY, JSON.stringify(next)); } catch { /* sin hueco */ }
+      saveImportant(ACT_KEY, next);
       return next;
     });
   };
@@ -1592,7 +1636,7 @@ export default function App() {
 
   // La biblioteca vive solo en tu dispositivo
   useEffect(() => {
-    try { localStorage.setItem(LIB_KEY, JSON.stringify(lib)); } catch { /* sin hueco */ }
+    saveImportant(LIB_KEY, lib);
   }, [lib]);
 
   // Espejo para la copia de Google de Android (ver backup.js): así, si cambias o

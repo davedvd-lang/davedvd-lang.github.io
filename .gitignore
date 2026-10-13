@@ -3,3 +3,4 @@ dist/
 www/
 package-lock.json
 import-test.json
+shot*.png
